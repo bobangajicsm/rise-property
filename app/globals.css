@@ -1,0 +1,233 @@
+@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@100..900&family=Inter:wght@300;400;500;600;700&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap");
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+@import "leaflet-draw/dist/leaflet.draw.css";
+
+:root {
+  --background: #ffffff;
+  --foreground: #111111;
+  --floating-bottom-offset: 2rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  --font-accent: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --color-primary: #000000;
+  --color-accent: #4fb0a1;
+  --color-accent-dark: #1a3c40;
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.18rem;
+  --radius-md: 0.24rem;
+  --radius-lg: 0.3rem;
+  --radius-xl: 0.42rem;
+  --radius-2xl: 0.56rem;
+  --radius-3xl: 0.7rem;
+  --radius-4xl: 0.82rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+::selection {
+  background: #4fb0a1;
+  color: #ffffff;
+}
+
+img {
+  display: block;
+}
+
+a {
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+.rounded-none {
+  border-radius: 0 !important;
+}
+
+.rounded-sm,
+.rounded,
+.rounded-md,
+.rounded-lg,
+.rounded-xl,
+.rounded-2xl,
+.rounded-3xl,
+.rounded-4xl {
+  border-radius: inherit;
+}
+
+[class~="rounded-sm"] {
+  border-radius: 0.18rem !important;
+}
+
+[class~="rounded"] {
+  border-radius: 0.22rem !important;
+}
+
+[class~="rounded-md"] {
+  border-radius: 0.26rem !important;
+}
+
+[class~="rounded-lg"] {
+  border-radius: 0.34rem !important;
+}
+
+[class~="rounded-xl"] {
+  border-radius: 0.46rem !important;
+}
+
+[class~="rounded-2xl"] {
+  border-radius: 0.6rem !important;
+}
+
+[class~="rounded-3xl"] {
+  border-radius: 0.78rem !important;
+}
+
+[class~="rounded-4xl"] {
+  border-radius: 0.92rem !important;
+}
+
+[class*="rounded-["]:not([class*="rounded-full"]) {
+  border-radius: 0.72rem !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+}
+
+.custom-marker {
+  background: none !important;
+  border: none !important;
+}
+
+.marker-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.marker-price {
+  transform: translateY(0);
+  white-space: nowrap;
+  border: 1px solid #eeeeee;
+  border-radius: 999px;
+  background: white;
+  padding: 4px 10px;
+  color: black;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
+}
+
+.marker-dot {
+  margin-top: 2px;
+  height: 8px;
+  width: 8px;
+  border: 2px solid white;
+  border-radius: 999px;
+  background: #4fb0a1;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.marker-container.active .marker-price {
+  transform: translateY(-5px) scale(1.1);
+  border-color: #4fb0a1;
+  background: #4fb0a1;
+  color: white;
+  box-shadow: 0 8px 25px rgba(79, 176, 161, 0.4);
+}
+
+.marker-container.active .marker-dot {
+  transform: scale(1.2);
+  background: black;
+}
+
+.leaflet-popup-content-wrapper {
+  overflow: hidden;
+  border-radius: 16px !important;
+  padding: 0 !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  width: auto !important;
+}
+
+.leaflet-container {
+  font-family: inherit !important;
+}
+
+@keyframes slow-zoom {
+  0% {
+    transform: scale(1);
+  }
+
+  100% {
+    transform: scale(1.1);
+  }
+}
+
+.animate-slow-zoom {
+  animation: slow-zoom 20s ease-in-out infinite alternate;
+}
+
+.ui-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(79, 176, 161, 0.6) rgba(17, 17, 17, 0.04);
+}
+
+.ui-scrollbar::-webkit-scrollbar {
+  width: 10px;
+}
+
+.ui-scrollbar::-webkit-scrollbar-track {
+  background: rgba(17, 17, 17, 0.04);
+  border-radius: 999px;
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(79, 176, 161, 0.9), rgba(79, 176, 161, 0.5));
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  border-radius: 999px;
+}
+
+.ui-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(79, 176, 161, 1), rgba(79, 176, 161, 0.7));
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

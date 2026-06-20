@@ -1,0 +1,41 @@
+{
+  "name": "rise-property",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "eslint",
+    "zoho:auth-url": "node scripts/zoho-auth-url.mjs",
+    "zoho:refresh-token": "node scripts/zoho-refresh-token.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1016.0",
+    "@neondatabase/serverless": "^1.0.2",
+    "@types/leaflet": "^1.9.21",
+    "@vercel/analytics": "^2.0.1",
+    "clsx": "^2.1.1",
+    "leaflet": "^1.9.4",
+    "leaflet-draw": "^1.0.4",
+    "lucide-react": "^1.0.1",
+    "motion": "^12.38.0",
+    "next": "16.2.1",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-leaflet": "^5.0.0",
+    "react-leaflet-cluster": "^4.0.0",
+    "react-leaflet-draw": "^0.21.0",
+    "tailwind-merge": "^3.5.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.1",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
