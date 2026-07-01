@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -26,8 +25,6 @@ import { MapLoading } from "@/components/maps/map-loading";
 import { ToggleSwitch } from "@/components/ui/toggle-switch";
 import {
   defaultPropertyAgent,
-  getPropertyAgentById,
-  PROPERTY_AGENTS,
   resolvePropertyAgent,
 } from "@/data/agents";
 import { AREAS } from "@/data/properties";
@@ -46,6 +43,7 @@ import {
   PROPERTY_VISIBILITY_META,
   PROPERTY_VISIBILITY_PUBLISHED,
   PROPERTY_VISIBILITY_STATUSES,
+  type ManagedPropertyAgent,
   type Property,
   type PropertyMutationInput,
   type PropertyTypeConfig,
@@ -87,6 +85,7 @@ interface PropertyFormState {
 interface AdminPropertyEditorProps {
   property?: Property;
   propertyTypes: PropertyTypeConfig[];
+  agents: ManagedPropertyAgent[];
 }
 
 type FieldErrorMap = Partial<Record<
@@ -162,7 +161,30 @@ function getDefaultPropertyTypeForUsage(
   return options[0] ?? (usage === PROPERTY_USAGE_COMMERCIAL ? "Office" : "Apartment");
 }
 
-function createEmptyFormState(propertyTypes: PropertyTypeConfig[]): PropertyFormState {
+function getDefaultAgentId(agents: ManagedPropertyAgent[]) {
+  return (
+    agents.find((agent) => agent.isDefault && agent.isActive)?.id ??
+    agents.find((agent) => agent.isActive)?.id ??
+    agents[0]?.id ??
+    defaultPropertyAgent.id
+  );
+}
+
+function getAgentByIdFromList(
+  agents: ManagedPropertyAgent[],
+  id?: string | null,
+) {
+  if (!id) {
+    return undefined;
+  }
+
+  return agents.find((agent) => agent.id === id);
+}
+
+function createEmptyFormState(
+  propertyTypes: PropertyTypeConfig[],
+  agents: ManagedPropertyAgent[],
+): PropertyFormState {
   const usage: Property["usage"] = PROPERTY_USAGE_RESIDENTIAL;
 
   return {
@@ -188,16 +210,21 @@ function createEmptyFormState(propertyTypes: PropertyTypeConfig[]): PropertyForm
     furnished: false,
     videoUrl: "",
     videoThumbnail: "",
-    agentId: defaultPropertyAgent.id,
+    agentId: getDefaultAgentId(agents),
   };
 }
 
 function propertyToFormState(
   property: Property,
   propertyTypes: PropertyTypeConfig[],
+  agents: ManagedPropertyAgent[],
 ): PropertyFormState {
   const usage = property.usage ?? getPropertyUsage(property);
   const propertyAgent = resolvePropertyAgent(property.agent);
+  const agentId =
+    getAgentByIdFromList(agents, property.agentId)?.id ??
+    getAgentByIdFromList(agents, propertyAgent.id)?.id ??
+    propertyAgent.id;
 
   return {
     id: property.id,
@@ -225,7 +252,7 @@ function propertyToFormState(
     furnished: Boolean(property.furnished),
     videoUrl: property.videoUrl ?? "",
     videoThumbnail: property.videoThumbnail ?? "",
-    agentId: propertyAgent.id,
+    agentId,
   };
 }
 
@@ -362,8 +389,12 @@ function FieldError({ message }: { message?: string }) {
   return <p className="mt-2 text-xs text-red-600">{message}</p>;
 }
 
-function formStateToPayload(form: PropertyFormState): PropertyMutationInput {
-  const selectedAgent = getPropertyAgentById(form.agentId);
+function formStateToPayload(
+  form: PropertyFormState,
+  agents: ManagedPropertyAgent[],
+): PropertyMutationInput {
+  const selectedAgent =
+    getAgentByIdFromList(agents, form.agentId) ?? resolvePropertyAgent({ id: form.agentId });
 
   return {
     id: form.id,
@@ -390,6 +421,7 @@ function formStateToPayload(form: PropertyFormState): PropertyMutationInput {
     furnished: form.furnished,
     videoUrl: form.videoUrl.trim() || undefined,
     videoThumbnail: form.videoThumbnail.trim() || undefined,
+    agentId: selectedAgent.id,
     agent: { ...selectedAgent },
   };
 }
@@ -495,15 +527,16 @@ function validatePropertyFormState(form: PropertyFormState): FieldErrorMap {
 export function AdminPropertyEditor({
   property,
   propertyTypes,
+  agents,
 }: AdminPropertyEditorProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const initialFormState = useMemo(
     () =>
       property
-        ? propertyToFormState(property, propertyTypes)
-        : createEmptyFormState(propertyTypes),
-    [property, propertyTypes],
+        ? propertyToFormState(property, propertyTypes, agents)
+        : createEmptyFormState(propertyTypes, agents),
+    [agents, property, propertyTypes],
   );
   const [featureDraft, setFeatureDraft] = useState("");
   const [imageUrlDraft, setImageUrlDraft] = useState("");
@@ -532,17 +565,15 @@ export function AdminPropertyEditor({
     return [...new Set([...AREAS.map((area) => area.name), formState.area].filter(Boolean))];
   }, [formState.area]);
 
-  useEffect(() => {
-    setFormState(initialFormState);
-  }, [initialFormState]);
-
   const featureItems = useMemo(
     () => normalizeLines(formState.featuresText),
     [formState.featuresText],
   );
   const selectedAgent = useMemo(
-    () => getPropertyAgentById(formState.agentId),
-    [formState.agentId],
+    () =>
+      getAgentByIdFromList(agents, formState.agentId) ??
+      resolvePropertyAgent(property?.agent ?? { id: formState.agentId }),
+    [agents, formState.agentId, property?.agent],
   );
   const imageItems = useMemo(
     () => normalizeLines(formState.imagesText),
@@ -749,7 +780,7 @@ export function AdminPropertyEditor({
 
     startTransition(async () => {
       try {
-        await savePropertyAction(formStateToPayload(preparedFormState));
+        await savePropertyAction(formStateToPayload(preparedFormState, agents));
         router.push("/admin/listings");
         router.refresh();
       } catch (error) {
@@ -1467,11 +1498,18 @@ export function AdminPropertyEditor({
                 }
                 className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
               >
-                {PROPERTY_AGENTS.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name}
+                {agents.length > 0 ? (
+                  agents.map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.name}
+                      {agent.isActive ? "" : " (Inactive)"}
+                    </option>
+                  ))
+                ) : (
+                  <option value={defaultPropertyAgent.id}>
+                    {defaultPropertyAgent.name}
                   </option>
-                ))}
+                )}
               </select>
             </div>
 
@@ -1577,38 +1615,24 @@ export function AdminPropertyEditor({
 
       </aside>
 
-      <div className="fixed right-4 bottom-28 left-4 z-40 xl:hidden">
-        <div className="rounded-[1.5rem] border border-black/8 bg-white px-4 py-4 shadow-xl">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-bold tracking-[0.18em] text-gray-400 uppercase">
-                {property ? "Update Status" : "Publish Status"}
-              </p>
-              <p className="mt-1 text-sm font-semibold text-black">
-                {property
-                  ? isDirty
-                    ? `${changedFieldsCount} change${changedFieldsCount === 1 ? "" : "s"} ready`
-                    : "No changes yet"
-                  : "Ready when core details are complete"}
-              </p>
-            </div>
+      {isDirty ? (
+        <div className="pointer-events-none fixed right-4 bottom-24 z-40 flex justify-end xl:hidden">
+          <div className="pointer-events-auto flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-full border border-black/10 bg-white/95 px-3 py-2 shadow-xl backdrop-blur">
+            <span className="truncate text-xs font-semibold text-black">
+              {property
+                ? `${changedFieldsCount} change${changedFieldsCount === 1 ? "" : "s"}`
+                : "Unsaved listing"}
+            </span>
             <button
               type="submit"
               disabled={!canSubmit}
-              className={cn(
-                "shrink-0 rounded-full px-4 py-3 text-[10px] font-bold tracking-[0.18em] uppercase transition-all disabled:cursor-not-allowed disabled:opacity-60",
-                property
-                  ? isDirty
-                    ? "bg-accent text-white"
-                    : "bg-gray-200 text-gray-500"
-                  : "bg-black text-white",
-              )}
+              className="shrink-0 rounded-full bg-accent px-3 py-2 text-[10px] font-bold tracking-[0.16em] text-white uppercase transition-all disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? "Saving..." : property ? "Update" : "Publish"}
+              {isPending ? "Saving" : property ? "Update" : "Publish"}
             </button>
           </div>
         </div>
-      </div>
+      ) : null}
     </form>
   );
 }

@@ -117,18 +117,82 @@ export interface FeaturedAreaMutationInput {
 
 export interface PropertyAgent {
   id?: string;
+  slug?: string;
   name: string;
   role: string;
   image: string;
+  imageKey?: string;
   phone: string;
   email?: string;
   whatsapp?: string;
+  bio?: string;
+  languages?: string[];
+  specialties?: string[];
+  areas?: string[];
+  capabilities?: Partial<PropertyAgentCapabilities>;
+  isActive?: boolean;
+  isDefault?: boolean;
+  sortOrder?: number;
+  listingCount?: number;
 }
 
 export interface PropertyAgentDirectoryEntry extends PropertyAgent {
   id: string;
   email: string;
   whatsapp: string;
+}
+
+export interface PropertyAgentCapabilities {
+  listingTypes: ListingType[];
+  usages: PropertyUsage[];
+  leadRouting: boolean;
+  showOnWebsite: boolean;
+  canReceiveWhatsApp: boolean;
+  canReceiveEmail: boolean;
+}
+
+export interface ManagedPropertyAgent extends PropertyAgentDirectoryEntry {
+  slug: string;
+  imageKey?: string;
+  bio: string;
+  languages: string[];
+  specialties: string[];
+  areas: string[];
+  capabilities: PropertyAgentCapabilities;
+  isActive: boolean;
+  isDefault: boolean;
+  sortOrder: number;
+  listingCount: number;
+}
+
+export interface PropertyAgentMutationInput {
+  id?: string;
+  slug?: string;
+  name: string;
+  role: string;
+  image: string;
+  imageKey?: string;
+  phone: string;
+  email: string;
+  whatsapp: string;
+  bio?: string;
+  languages?: string[];
+  specialties?: string[];
+  areas?: string[];
+  capabilities?: Partial<PropertyAgentCapabilities>;
+  isActive?: boolean;
+  isDefault?: boolean;
+  sortOrder?: number;
+}
+
+export interface AgentAssignmentFilters {
+  query?: string;
+  listingType?: "all" | ListingType;
+  visibilityStatus?: "all" | PropertyVisibilityStatus;
+  usage?: "all" | PropertyUsage;
+  propertyType?: string;
+  area?: string;
+  currentAgentId?: string;
 }
 
 export interface Property {
@@ -157,6 +221,7 @@ export interface Property {
   furnished?: boolean;
   videoUrl?: string;
   videoThumbnail?: string;
+  agentId?: string;
   agent: PropertyAgent;
 }
 
@@ -185,6 +250,7 @@ export interface PropertyMutationInput {
   furnished?: boolean;
   videoUrl?: string;
   videoThumbnail?: string;
+  agentId?: string;
   agent: PropertyAgent;
 }
 

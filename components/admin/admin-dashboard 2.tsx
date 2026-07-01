@@ -22,6 +22,7 @@ import {
   logoutAdmin,
   savePropertyAction,
 } from "@/app/actions";
+import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 import { AREAS } from "@/data/properties";
 import { getPropertyUsage } from "@/lib/property-formatting";
 import { buildPropertySlug } from "@/lib/property-slug";
@@ -199,6 +200,7 @@ export function AdminDashboard({ properties }: AdminDashboardProps) {
     createEmptyFormState(),
   );
   const [feedback, setFeedback] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -307,15 +309,21 @@ export function AdminDashboard({ properties }: AdminDashboardProps) {
   }
 
   function handleDelete(property: Property) {
-    if (!window.confirm(`Delete "${property.title}"?`)) {
+    setDeleteTarget(property);
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) {
       return;
     }
 
+    const property = deleteTarget;
     setFeedback("");
 
     startTransition(async () => {
       try {
         await deletePropertyAction(property.id);
+        setDeleteTarget(null);
         setItems((current) =>
           current.filter((entry) => entry.id !== property.id),
         );
@@ -324,6 +332,7 @@ export function AdminDashboard({ properties }: AdminDashboardProps) {
         }
         router.refresh();
       } catch (error) {
+        setDeleteTarget(null);
         setFeedback(
           error instanceof Error ? error.message : "Unable to delete listing.",
         );
@@ -332,7 +341,8 @@ export function AdminDashboard({ properties }: AdminDashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f7f8]">
+    <>
+      <div className="min-h-screen bg-[#f6f7f8]">
       <div className="mx-auto grid min-h-screen max-w-[1600px] lg:grid-cols-[280px_minmax(0,1fr)]">
         <aside className="border-r border-black/5 bg-white p-6 lg:p-8">
           <div className="rounded-[2rem] bg-black p-6 text-white">
@@ -1046,6 +1056,21 @@ export function AdminDashboard({ properties }: AdminDashboardProps) {
           ) : null}
         </main>
       </div>
-    </div>
+      </div>
+      <AdminConfirmDialog
+        open={deleteTarget !== null}
+        variant="danger"
+        title="Delete Listing"
+        description={
+          deleteTarget
+            ? `Delete "${deleteTarget.title}" from the admin and public listing pages. This action cannot be undone.`
+            : ""
+        }
+        confirmLabel="Delete"
+        isPending={isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
+    </>
   );
 }

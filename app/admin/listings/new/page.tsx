@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminPropertyEditor } from "@/components/admin/admin-property-editor";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { getActiveAgents } from "@/lib/agents-store";
 import { getPropertyTypeConfigurations } from "@/lib/property-types-store";
 import { siteName } from "@/lib/site";
 
@@ -19,7 +20,10 @@ export default async function AdminNewListingPage() {
     redirect("/admin/login");
   }
 
-  const propertyTypes = await getPropertyTypeConfigurations();
+  const [propertyTypes, agents] = await Promise.all([
+    getPropertyTypeConfigurations(),
+    getActiveAgents(),
+  ]);
 
   return (
     <AdminShell
@@ -27,7 +31,7 @@ export default async function AdminNewListingPage() {
       title="Create Listing"
       description="Build a new property entry with media, map pinning, and full listing details."
     >
-      <AdminPropertyEditor propertyTypes={propertyTypes} />
+      <AdminPropertyEditor propertyTypes={propertyTypes} agents={agents} />
     </AdminShell>
   );
 }

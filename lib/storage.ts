@@ -144,6 +144,7 @@ export async function uploadImageToStorage(params: {
   bytes: Uint8Array;
   contentType: string;
   fileName: string;
+  folder?: string;
 }) {
   const config = getStorageConfig();
   const client = getStorageClient();
@@ -158,7 +159,8 @@ export async function uploadImageToStorage(params: {
     "bin";
   const baseName =
     params.fileName.replace(/\.[^.]+$/, "") || `upload-${Date.now()}`;
-  const key = `properties/${Date.now()}-${slugifyPropertyValue(baseName)}.${extension}`;
+  const folder = slugifyPropertyValue(params.folder || "properties") || "properties";
+  const key = `${folder}/${Date.now()}-${slugifyPropertyValue(baseName)}.${extension}`;
 
   await client.send(
     new PutObjectCommand({

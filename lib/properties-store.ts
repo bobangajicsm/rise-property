@@ -1,5 +1,6 @@
 import { MOCK_PROPERTIES } from "@/data/properties";
 import { defaultPropertyAgent, resolvePropertyAgent } from "@/data/agents";
+import { getAgentById } from "@/lib/agents-store";
 import { getSql } from "@/lib/neon";
 import { getPropertyUsage } from "@/lib/property-formatting";
 import { buildPropertySlug } from "@/lib/property-slug";
@@ -39,6 +40,7 @@ interface PropertyRow {
   furnished: boolean | null;
   video_url: string | null;
   video_thumbnail: string | null;
+  agent_id: string | null;
   agent: unknown;
   created_at?: string;
   updated_at?: string;
@@ -146,6 +148,7 @@ function mapRowToProperty(row: PropertyRow): Property {
     furnished: row.furnished ?? undefined,
     videoUrl: row.video_url ?? undefined,
     videoThumbnail: row.video_thumbnail ?? undefined,
+    agentId: row.agent_id ?? parseAgent(row.agent).id,
     agent: parseAgent(row.agent),
   };
 }
@@ -190,6 +193,7 @@ async function ensureSchema() {
           furnished BOOLEAN,
           video_url TEXT,
           video_thumbnail TEXT,
+          agent_id TEXT,
           agent JSONB NOT NULL DEFAULT '{}'::jsonb,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -210,6 +214,11 @@ async function ensureSchema() {
       await sql`
         ALTER TABLE properties
         ADD COLUMN IF NOT EXISTS usage TEXT
+      `;
+
+      await sql`
+        ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS agent_id TEXT
       `;
 
       await sql`
@@ -254,6 +263,7 @@ async function ensureSchema() {
               furnished,
               video_url,
               video_thumbnail,
+              agent_id,
               agent
             ) VALUES (
               ${property.id},
@@ -281,6 +291,7 @@ async function ensureSchema() {
               ${property.furnished ?? null},
               ${property.videoUrl ?? null},
               ${property.videoThumbnail ?? null},
+              ${property.agent.id ?? null},
               ${JSON.stringify(property.agent)}::jsonb
             )
             ON CONFLICT (slug) DO NOTHING
@@ -304,11 +315,15 @@ async function ensureSchema() {
   await schemaReadyPromise;
 }
 
-function sanitizePropertyInput(input: PropertyMutationInput) {
+async function sanitizePropertyInput(input: PropertyMutationInput) {
   const normalizedId =
     typeof input.id === "number" && Number.isFinite(input.id) ? input.id : null;
   const fallbackImages =
     input.images.length > 0 ? input.images : [MOCK_PROPERTIES[0]?.images[0] ?? ""];
+  const liveAgent = input.agentId
+    ? await getAgentById(input.agentId, { includeInactive: true })
+    : null;
+  const resolvedAgent = liveAgent ?? resolvePropertyAgent(input.agent);
 
   return {
     id: normalizedId,
@@ -337,7 +352,8 @@ function sanitizePropertyInput(input: PropertyMutationInput) {
       typeof input.furnished === "boolean" ? input.furnished : undefined,
     videoUrl: input.videoUrl?.trim() || undefined,
     videoThumbnail: input.videoThumbnail?.trim() || undefined,
-    agent: resolvePropertyAgent(input.agent),
+    agentId: liveAgent?.id ?? input.agentId ?? resolvedAgent.id,
+    agent: resolvedAgent,
   };
 }
 
@@ -429,7 +445,7 @@ export async function upsertProperty(
   input: PropertyMutationInput,
 ): Promise<Property> {
   const sql = getSql();
-  const sanitized = sanitizePropertyInput(input);
+  const sanitized = await sanitizePropertyInput(input);
 
   if (!sql) {
     return {
@@ -441,6 +457,7 @@ export async function upsertProperty(
       ),
       visibilityStatus: sanitized.visibilityStatus,
       usage: sanitized.usage,
+      agentId: sanitized.agentId,
       agent: sanitized.agent,
     };
   }
@@ -475,6 +492,7 @@ export async function upsertProperty(
         furnished = ${sanitized.furnished ?? null},
         video_url = ${sanitized.videoUrl ?? null},
         video_thumbnail = ${sanitized.videoThumbnail ?? null},
+        agent_id = ${sanitized.agentId ?? null},
         agent = ${JSON.stringify(sanitized.agent)}::jsonb,
         updated_at = NOW()
       WHERE id = ${sanitized.id}
@@ -512,6 +530,7 @@ export async function upsertProperty(
       furnished,
       video_url,
       video_thumbnail,
+      agent_id,
       agent
     ) VALUES (
       ${`temp-${buildPropertySlug(sanitized.title)}-${Date.now()}`},
@@ -538,6 +557,7 @@ export async function upsertProperty(
       ${sanitized.furnished ?? null},
       ${sanitized.videoUrl ?? null},
       ${sanitized.videoThumbnail ?? null},
+      ${sanitized.agentId ?? null},
       ${JSON.stringify(sanitized.agent)}::jsonb
     )
     RETURNING *

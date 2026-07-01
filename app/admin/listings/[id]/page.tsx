@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminPropertyEditor } from "@/components/admin/admin-property-editor";
 import { AdminShell } from "@/components/admin/admin-shell";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { getAgents } from "@/lib/agents-store";
 import { getPropertyTypeConfigurations } from "@/lib/property-types-store";
 import { getPropertyById } from "@/lib/properties-store";
 import { siteName } from "@/lib/site";
@@ -29,9 +30,10 @@ export default async function AdminEditListingPage(
     notFound();
   }
 
-  const [property, propertyTypes] = await Promise.all([
+  const [property, propertyTypes, agents] = await Promise.all([
     getPropertyById(id),
     getPropertyTypeConfigurations(),
+    getAgents({ includeInactive: true }),
   ]);
 
   if (!property) {
@@ -44,7 +46,11 @@ export default async function AdminEditListingPage(
       title="Edit Listing"
       description="Refine content, update location data, and publish changes back to the live site."
     >
-      <AdminPropertyEditor property={property} propertyTypes={propertyTypes} />
+      <AdminPropertyEditor
+        property={property}
+        propertyTypes={propertyTypes}
+        agents={agents}
+      />
     </AdminShell>
   );
 }

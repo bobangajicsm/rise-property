@@ -9,6 +9,14 @@ import {
   validateAdminCredentials,
 } from "@/lib/admin-auth";
 import {
+  assignAllMatchingPropertiesToAgent,
+  assignPropertiesToAgent,
+  deleteAgentById,
+  transferPropertiesBetweenAgents,
+  upsertAgent,
+  updatePropertyAgentSnapshots,
+} from "@/lib/agents-store";
+import {
   deletePropertyById,
   getAllProperties,
   upsertProperty,
@@ -17,7 +25,9 @@ import { saveFeaturedAreaConfigurations } from "@/lib/featured-areas-store";
 import { savePropertyTypeConfigurations } from "@/lib/property-types-store";
 import type {
   FeaturedAreaMutationInput,
+  AgentAssignmentFilters,
   Property,
+  PropertyAgentMutationInput,
   PropertyMutationInput,
   PropertyTypeMutationInput,
 } from "@/types/property";
@@ -66,6 +76,24 @@ function revalidatePropertyTypePaths() {
   revalidatePath("/admin");
   revalidatePath("/admin/listings");
   revalidatePath("/admin/listings/new");
+}
+
+function revalidateAgentPaths(slugs: string[] = []) {
+  revalidatePath("/");
+  revalidatePath("/buy");
+  revalidatePath("/rent");
+  revalidatePath("/search");
+  revalidatePath("/search/[slug]", "page");
+  revalidatePath("/admin");
+  revalidatePath("/admin/agents");
+  revalidatePath("/admin/agents/new");
+  revalidatePath("/admin/listings");
+  revalidatePath("/admin/listings/new");
+  revalidatePath("/sitemap.xml");
+
+  for (const slug of slugs) {
+    revalidatePath(`/properties/${slug}`);
+  }
 }
 
 export async function getData() {
@@ -133,4 +161,59 @@ export async function savePropertyTypesAction(
   revalidatePropertyTypePaths();
 
   return propertyTypes;
+}
+
+export async function saveAgentAction(input: PropertyAgentMutationInput) {
+  await assertAdmin();
+
+  const agent = await upsertAgent(input);
+  const snapshotUpdate = await updatePropertyAgentSnapshots(agent);
+  revalidateAgentPaths(snapshotUpdate.slugs);
+
+  return agent;
+}
+
+export async function deleteAgentAction(id: string) {
+  await assertAdmin();
+
+  const agent = await deleteAgentById(id);
+  revalidateAgentPaths();
+
+  return agent;
+}
+
+export async function assignPropertiesToAgentAction(
+  agentId: string,
+  propertyIds: number[],
+) {
+  await assertAdmin();
+
+  const result = await assignPropertiesToAgent(agentId, propertyIds);
+  revalidateAgentPaths(result.slugs);
+
+  return result;
+}
+
+export async function assignFilteredPropertiesToAgentAction(
+  agentId: string,
+  filters: AgentAssignmentFilters,
+) {
+  await assertAdmin();
+
+  const result = await assignAllMatchingPropertiesToAgent(agentId, filters);
+  revalidateAgentPaths(result.slugs);
+
+  return result;
+}
+
+export async function transferAgentPropertiesAction(
+  fromAgentId: string,
+  toAgentId: string,
+) {
+  await assertAdmin();
+
+  const result = await transferPropertiesBetweenAgents(fromAgentId, toAgentId);
+  revalidateAgentPaths(result.slugs);
+
+  return result;
 }

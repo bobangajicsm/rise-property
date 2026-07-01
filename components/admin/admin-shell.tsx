@@ -9,13 +9,14 @@ import {
   Layers,
   LogOut,
   Plus,
+  Users,
 } from "lucide-react";
 import { logoutAdmin } from "@/app/actions";
 import { cn } from "@/lib/utils";
 
 interface AdminShellProps {
   children: ReactNode;
-  current: "overview" | "listings" | "new" | "edit";
+  current: "overview" | "listings" | "new" | "edit" | "agents" | "agent-new" | "agent-edit";
   title: string;
   description: string;
 }
@@ -38,6 +39,12 @@ const navigationItems = [
     key: "new",
     label: "Create",
     icon: Plus,
+  },
+  {
+    href: "/admin/agents",
+    key: "agents",
+    label: "Agents",
+    icon: Users,
   },
 ] as const;
 
@@ -85,6 +92,8 @@ export function AdminShell({
     () => false,
   );
   const isListingsActive = current === "listings" || current === "edit";
+  const isAgentsActive =
+    current === "agents" || current === "agent-new" || current === "agent-edit";
   const isEditor = current === "new" || current === "edit";
   const desktopSidebarWidth = isCollapsed ? 92 : 320;
 
@@ -151,7 +160,11 @@ export function AdminShell({
           {navigationItems.map((item) => {
             const Icon = item.icon;
             const isActive =
-              item.key === "listings" ? isListingsActive : current === item.key;
+              item.key === "listings"
+                ? isListingsActive
+                : item.key === "agents"
+                  ? isAgentsActive
+                  : current === item.key;
 
             return (
               <Link
@@ -254,7 +267,11 @@ export function AdminShell({
         {navigationItems.map((item) => {
           const Icon = item.icon;
           const isActive =
-            item.key === "listings" ? isListingsActive : current === item.key;
+            item.key === "listings"
+              ? isListingsActive
+              : item.key === "agents"
+                ? isAgentsActive
+                : current === item.key;
 
           return (
             <Link
