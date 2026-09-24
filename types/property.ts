@@ -163,6 +163,9 @@ export interface ManagedPropertyAgent extends PropertyAgentDirectoryEntry {
   isDefault: boolean;
   sortOrder: number;
   listingCount: number;
+  loginUsername?: string;
+  canLogin: boolean;
+  hasPassword: boolean;
 }
 
 export interface PropertyAgentMutationInput {
@@ -183,6 +186,9 @@ export interface PropertyAgentMutationInput {
   isActive?: boolean;
   isDefault?: boolean;
   sortOrder?: number;
+  loginUsername?: string;
+  loginPassword?: string;
+  canLogin?: boolean;
 }
 
 export interface AgentAssignmentFilters {
@@ -223,6 +229,8 @@ export interface Property {
   videoThumbnail?: string;
   agentId?: string;
   agent: PropertyAgent;
+  agentIds?: string[];
+  agents?: PropertyAgent[];
 }
 
 export interface PropertyMutationInput {
@@ -252,6 +260,8 @@ export interface PropertyMutationInput {
   videoThumbnail?: string;
   agentId?: string;
   agent: PropertyAgent;
+  agentIds?: string[];
+  agents?: PropertyAgent[];
 }
 
 export interface PropertyTypeConfig {

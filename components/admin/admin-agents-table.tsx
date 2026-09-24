@@ -254,6 +254,11 @@ export function AdminAgentsTable({ agents }: AdminAgentsTableProps) {
                   <span className="rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.18em] text-gray-500 uppercase">
                     {agent.capabilities.listingTypes.join(" / ")}
                   </span>
+                  {agent.canLogin ? (
+                    <span className="rounded-full bg-accent/10 px-3 py-1.5 text-[10px] font-bold tracking-[0.18em] text-accent uppercase">
+                      Login Enabled
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link

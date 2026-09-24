@@ -11,18 +11,25 @@ import {
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
-import { deletePropertyAction } from "@/app/actions";
+import {
+  addAgentToPropertyAction,
+  deletePropertyAction,
+} from "@/app/actions";
 import { formatPrice } from "@/lib/property-formatting";
 import { cn } from "@/lib/utils";
 import {
   PROPERTY_VISIBILITY_META,
   PROPERTY_VISIBILITY_PUBLISHED,
+  type ManagedPropertyAgent,
   type Property,
+  type PropertyAgent,
 } from "@/types/property";
 import { AdminConfirmDialog } from "@/components/admin/admin-confirm-dialog";
 
 interface AdminListingsTableProps {
   properties: Property[];
+  agents: ManagedPropertyAgent[];
+  viewerRole?: "admin" | "agent";
 }
 
 type OptionalColumnKey = "status" | "category" | "area" | "agent" | "reference";
@@ -59,13 +66,49 @@ function getAgentInitials(name: string) {
     .toUpperCase();
 }
 
-function AgentAvatar({ property }: { property: Property }) {
-  const agentName = property.agent.name || "Agent";
-  const agentImage = property.agent.image?.trim();
+function getPropertyAgents(property: Property) {
+  const agents = property.agents?.length ? property.agents : [property.agent];
+  const seen = new Set<string>();
+
+  return agents.filter((agent) => {
+    const key = agent.id?.trim() || `${agent.name}-${agent.email ?? ""}`;
+
+    if (!key || seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function getPropertyAgentIds(property: Property) {
+  return new Set(
+    [
+      property.agentId,
+      property.agent.id,
+      ...(property.agentIds ?? []),
+      ...getPropertyAgents(property).map((agent) => agent.id),
+    ].filter((agentId): agentId is string => Boolean(agentId?.trim())),
+  );
+}
+
+function AgentAvatar({
+  agent,
+  compact,
+}: {
+  agent: PropertyAgent;
+  compact?: boolean;
+}) {
+  const agentName = agent.name || "Agent";
+  const agentImage = agent.image?.trim();
 
   return (
     <span
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-gray-100 text-[10px] font-bold text-gray-500 shadow-sm ring-1 ring-black/5"
+      className={cn(
+        "inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white bg-gray-100 font-bold text-gray-500 shadow-sm ring-1 ring-black/5",
+        compact ? "h-7 w-7 text-[9px]" : "h-8 w-8 text-[10px]",
+      )}
       title={agentName}
       aria-label={agentName}
     >
@@ -83,6 +126,53 @@ function AgentAvatar({ property }: { property: Property }) {
   );
 }
 
+function AgentAvatarStack({
+  property,
+  canAdd,
+  onAdd,
+}: {
+  property: Property;
+  canAdd: boolean;
+  onAdd: (property: Property) => void;
+}) {
+  const propertyAgents = getPropertyAgents(property);
+  const visibleAgents = propertyAgents.slice(0, 3);
+  const extraCount = Math.max(propertyAgents.length - visibleAgents.length, 0);
+
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <div className="flex -space-x-2">
+        {visibleAgents.map((agent, index) => (
+          <AgentAvatar
+            key={agent.id ?? `${agent.name}-${index}`}
+            agent={agent}
+            compact={propertyAgents.length > 1}
+          />
+        ))}
+        {extraCount > 0 ? (
+          <span
+            className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full border border-white bg-black px-1.5 text-[9px] font-bold text-white shadow-sm ring-1 ring-black/5"
+            title={`${extraCount} more agent${extraCount === 1 ? "" : "s"}`}
+          >
+            +{extraCount}
+          </span>
+        ) : null}
+      </div>
+      {canAdd ? (
+        <button
+          type="button"
+          onClick={() => onAdd(property)}
+          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:border-black hover:text-black"
+          title="Add agent"
+          aria-label="Add agent"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 function getStatusClass(property: Property) {
   return property.visibilityStatus === PROPERTY_VISIBILITY_PUBLISHED
     ? "bg-emerald-50 text-emerald-700"
@@ -93,11 +183,13 @@ function ListingActions({
   property,
   isPending,
   onDelete,
+  canDelete,
   compact,
 }: {
   property: Property;
   isPending: boolean;
   onDelete: (property: Property) => void;
+  canDelete: boolean;
   compact?: boolean;
 }) {
   const buttonClass = compact
@@ -105,7 +197,7 @@ function ListingActions({
     : "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold tracking-[0.18em] uppercase transition-all";
 
   return (
-    <div className={cn("flex gap-2", compact ? "grid grid-cols-3" : "flex-wrap")}>
+    <div className={cn("flex gap-2", compact ? (canDelete ? "grid grid-cols-3" : "grid grid-cols-2") : "flex-wrap")}>
       <Link
         href={`/properties/${property.slug}`}
         target="_blank"
@@ -127,23 +219,29 @@ function ListingActions({
         <Edit3 className="h-3.5 w-3.5" />
         Edit
       </Link>
-      <button
-        type="button"
-        disabled={isPending}
-        onClick={() => onDelete(property)}
-        className={cn(
-          buttonClass,
-          "border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60",
-        )}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        Delete
-      </button>
+      {canDelete ? (
+        <button
+          type="button"
+          disabled={isPending}
+          onClick={() => onDelete(property)}
+          className={cn(
+            buttonClass,
+            "border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60",
+          )}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </button>
+      ) : null}
     </div>
   );
 }
 
-export function AdminListingsTable({ properties }: AdminListingsTableProps) {
+export function AdminListingsTable({
+  properties,
+  agents,
+  viewerRole = "admin",
+}: AdminListingsTableProps) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [visibilityFilter, setVisibilityFilter] = useState<
@@ -152,8 +250,11 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
   const [showColumnOptions, setShowColumnOptions] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState(defaultVisibleColumns);
   const [deleteTarget, setDeleteTarget] = useState<Property | null>(null);
+  const [agentTarget, setAgentTarget] = useState<Property | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState("");
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
+  const canManageListings = viewerRole === "admin";
 
   const filteredProperties = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -170,6 +271,7 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
           property.type,
           property.slug,
           property.agent.name,
+          ...getPropertyAgents(property).map((agent) => agent.name),
           String(property.id),
         ].some((value) => value.toLowerCase().includes(query));
 
@@ -197,6 +299,22 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
     (column) => visibleColumns[column.key],
   ).length;
   const tableColumnCount = 3 + activeOptionalColumnCount;
+  const agentCandidatesForTarget = useMemo(() => {
+    if (!agentTarget) {
+      return [];
+    }
+
+    const assignedIds = getPropertyAgentIds(agentTarget);
+    return agents
+      .filter((agent) => agent.isActive && !assignedIds.has(agent.id))
+      .sort((first, second) => {
+        if (first.isDefault !== second.isDefault) {
+          return first.isDefault ? -1 : 1;
+        }
+
+        return first.sortOrder - second.sortOrder || first.name.localeCompare(second.name);
+      });
+  }, [agentTarget, agents]);
 
   function toggleColumn(key: OptionalColumnKey) {
     setVisibleColumns((current) => ({
@@ -207,6 +325,16 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
 
   function handleDelete(property: Property) {
     setDeleteTarget(property);
+  }
+
+  function requestAgentAdd(property: Property) {
+    const assignedIds = getPropertyAgentIds(property);
+    const nextAgent = agents.find(
+      (agent) => agent.isActive && !assignedIds.has(agent.id),
+    );
+
+    setSelectedAgentId(nextAgent?.id ?? "");
+    setAgentTarget(property);
   }
 
   function confirmDelete() {
@@ -227,6 +355,36 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
         setDeleteTarget(null);
         setFeedback(
           error instanceof Error ? error.message : "Unable to delete listing.",
+        );
+      }
+    });
+  }
+
+  function confirmAgentAdd() {
+    if (!agentTarget || !selectedAgentId) {
+      setFeedback("Choose an agent first.");
+      return;
+    }
+
+    const property = agentTarget;
+    const selectedAgent = agents.find((agent) => agent.id === selectedAgentId);
+
+    setFeedback("");
+
+    startTransition(async () => {
+      try {
+        await addAgentToPropertyAction(property.id, selectedAgentId);
+        setAgentTarget(null);
+        setSelectedAgentId("");
+        setFeedback(
+          `${selectedAgent?.name ?? "Agent"} added to "${property.title}".`,
+        );
+        router.refresh();
+      } catch (error) {
+        setAgentTarget(null);
+        setSelectedAgentId("");
+        setFeedback(
+          error instanceof Error ? error.message : "Unable to add agent.",
         );
       }
     });
@@ -291,13 +449,15 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
               <SlidersHorizontal className="h-4 w-4" />
               Columns
             </button>
-            <Link
-              href="/admin/listings/new"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-black px-5 py-3 text-[10px] font-bold tracking-[0.22em] text-white uppercase transition-all hover:bg-accent"
-            >
-              <Plus className="h-4 w-4" />
-              Add New
-            </Link>
+            {canManageListings ? (
+              <Link
+                href="/admin/listings/new"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-black px-5 py-3 text-[10px] font-bold tracking-[0.22em] text-white uppercase transition-all hover:bg-accent"
+              >
+                <Plus className="h-4 w-4" />
+                Add New
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -352,7 +512,7 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
                 {visibleColumns.status ? <th className="w-[120px] px-4 py-4">Status</th> : null}
                 {visibleColumns.category ? <th className="w-[150px] px-4 py-4">Category</th> : null}
                 {visibleColumns.area ? <th className="w-[130px] px-4 py-4">Area</th> : null}
-                {visibleColumns.agent ? <th className="w-[76px] px-4 py-4">Agent</th> : null}
+                {visibleColumns.agent ? <th className="w-[116px] px-4 py-4">Agent</th> : null}
                 {visibleColumns.reference ? <th className="w-[100px] px-4 py-4">Ref</th> : null}
                 <th className="w-[130px] px-4 py-4">Price</th>
                 <th className="w-[220px] px-4 py-4">Actions</th>
@@ -415,7 +575,11 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
                   ) : null}
                   {visibleColumns.agent ? (
                     <td className="px-4 py-4 text-center">
-                      <AgentAvatar property={property} />
+                      <AgentAvatarStack
+                        property={property}
+                        canAdd={canManageListings}
+                        onAdd={requestAgentAdd}
+                      />
                     </td>
                   ) : null}
                   {visibleColumns.reference ? (
@@ -431,6 +595,7 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
                       property={property}
                       isPending={isPending}
                       onDelete={handleDelete}
+                      canDelete={canManageListings}
                     />
                   </td>
                 </tr>
@@ -466,7 +631,11 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
                       {property.title}
                     </p>
                     {visibleColumns.agent ? (
-                      <AgentAvatar property={property} />
+                      <AgentAvatarStack
+                        property={property}
+                        canAdd={canManageListings}
+                        onAdd={requestAgentAdd}
+                      />
                     ) : null}
                   </div>
                   <p className="mt-1 truncate text-sm text-gray-500">
@@ -518,6 +687,7 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
                   property={property}
                   isPending={isPending}
                   onDelete={handleDelete}
+                  canDelete={canManageListings}
                   compact
                 />
               </div>
@@ -535,6 +705,51 @@ export function AdminListingsTable({ properties }: AdminListingsTableProps) {
         </div>
       </div>
       </div>
+      <AdminConfirmDialog
+        open={agentTarget !== null}
+        variant="primary"
+        eyebrow="Agent Assignment"
+        title="Add Agent"
+        description={
+          agentTarget
+            ? `Choose an agent to add to "${agentTarget.title}". Current agents stay assigned.`
+            : ""
+        }
+        confirmLabel="Add Agent"
+        confirmDisabled={!selectedAgentId || agentCandidatesForTarget.length === 0}
+        isPending={isPending}
+        onCancel={() => {
+          setAgentTarget(null);
+          setSelectedAgentId("");
+        }}
+        onConfirm={confirmAgentAdd}
+      >
+        <div className="rounded-[1.25rem] border border-gray-100 bg-gray-50 p-4">
+          {agentCandidatesForTarget.length > 0 ? (
+            <>
+              <label className="block text-[10px] font-bold tracking-[0.22em] text-gray-400 uppercase">
+                Agent
+              </label>
+              <select
+                value={selectedAgentId}
+                onChange={(event) => setSelectedAgentId(event.target.value)}
+                className="mt-3 w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-black outline-none transition-colors focus:border-accent"
+              >
+                {agentCandidatesForTarget.map((agent) => (
+                  <option key={agent.id} value={agent.id}>
+                    {agent.name}
+                    {agent.isDefault ? " (Default)" : ""}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <p className="text-sm leading-relaxed text-gray-500">
+              All active agents are already assigned to this listing.
+            </p>
+          )}
+        </div>
+      </AdminConfirmDialog>
       <AdminConfirmDialog
         open={deleteTarget !== null}
         variant="danger"

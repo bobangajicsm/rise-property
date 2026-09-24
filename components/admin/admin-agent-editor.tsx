@@ -58,6 +58,9 @@ interface AgentFormState {
   isActive: boolean;
   isDefault: boolean;
   sortOrder: string;
+  loginUsername: string;
+  loginPassword: string;
+  canLogin: boolean;
 }
 
 interface UploadPayload {
@@ -104,6 +107,9 @@ function createEmptyFormState(agents: ManagedPropertyAgent[]): AgentFormState {
     isActive: true,
     isDefault: agents.length === 0,
     sortOrder: String(agents.length),
+    loginUsername: "",
+    loginPassword: "",
+    canLogin: false,
   };
 }
 
@@ -125,6 +131,9 @@ function agentToFormState(agent: ManagedPropertyAgent): AgentFormState {
     isActive: agent.isActive,
     isDefault: agent.isDefault,
     sortOrder: String(agent.sortOrder),
+    loginUsername: agent.loginUsername ?? "",
+    loginPassword: "",
+    canLogin: agent.canLogin,
   };
 }
 
@@ -146,6 +155,9 @@ function formStateToPayload(form: AgentFormState): PropertyAgentMutationInput {
     isActive: form.isActive,
     isDefault: form.isDefault,
     sortOrder: Number(form.sortOrder),
+    loginUsername: form.loginUsername.trim(),
+    loginPassword: form.loginPassword.trim() || undefined,
+    canLogin: form.canLogin,
   };
 }
 
@@ -443,6 +455,16 @@ export function AdminAgentEditor({
 
     if (!formState.phone.trim()) {
       setFeedback("Agent phone is required.");
+      return;
+    }
+
+    if (formState.canLogin && !formState.loginUsername.trim()) {
+      setFeedback("Agent login username is required.");
+      return;
+    }
+
+    if (formState.canLogin && !agent?.hasPassword && !formState.loginPassword.trim()) {
+      setFeedback("Set an agent password before enabling login access.");
       return;
     }
 
@@ -869,6 +891,81 @@ export function AdminAgentEditor({
                   offLabel="Disabled"
                 />
               </div>
+            </div>
+          </section>
+
+          <section className="rounded-[2rem] border border-black/5 bg-white p-6 shadow-sm">
+            <div className="mb-6">
+              <p className="text-[10px] font-bold tracking-[0.24em] text-gray-400 uppercase">
+                Login
+              </p>
+              <h3 className="mt-2 font-display text-2xl font-bold text-black">
+                Agent Listing Access
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-500">
+                Create a username and password so this agent can access only their assigned listings.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <ToggleSwitch
+                label="Agent Login Access"
+                description="When enabled, this agent can sign in from the admin login screen and see assigned listings only."
+                checked={formState.canLogin}
+                onCheckedChange={(checked) =>
+                  setFormState((current) => ({
+                    ...current,
+                    canLogin: checked,
+                  }))
+                }
+                onLabel="Enabled"
+                offLabel="Disabled"
+              />
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-[10px] font-bold tracking-[0.22em] text-gray-400 uppercase">
+                    Username
+                  </label>
+                  <input
+                    value={formState.loginUsername}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        loginUsername: event.target.value,
+                      }))
+                    }
+                    placeholder="agent.username"
+                    autoComplete="off"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-[10px] font-bold tracking-[0.22em] text-gray-400 uppercase">
+                    {agent?.hasPassword ? "New Password" : "Password"}
+                  </label>
+                  <input
+                    type="password"
+                    value={formState.loginPassword}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        loginPassword: event.target.value,
+                      }))
+                    }
+                    placeholder={agent?.hasPassword ? "Leave blank to keep current" : "Set password"}
+                    autoComplete="new-password"
+                    className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
+                  />
+                </div>
+              </div>
+
+              {agent?.hasPassword ? (
+                <p className="text-xs leading-relaxed text-gray-500">
+                  A password is already set. Fill New Password only if you want to replace it.
+                </p>
+              ) : null}
             </div>
           </section>
 

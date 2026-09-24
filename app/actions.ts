@@ -3,6 +3,15 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import {
+  clearAgentSession,
+  createAgentSession,
+  loginAgentWithCredentials,
+} from "@/lib/agent-auth";
+import {
+  getAdminAccess,
+  isPropertyOwnedByAgent,
+} from "@/lib/admin-access";
+import {
   clearAdminSession,
   createAdminSession,
   isAdminAuthenticated,
@@ -17,6 +26,7 @@ import {
   updatePropertyAgentSnapshots,
 } from "@/lib/agents-store";
 import {
+  addAgentToProperty,
   deletePropertyById,
   getAllProperties,
   upsertProperty,
@@ -27,6 +37,7 @@ import type {
   FeaturedAreaMutationInput,
   AgentAssignmentFilters,
   Property,
+  PropertyAgent,
   PropertyAgentMutationInput,
   PropertyMutationInput,
   PropertyTypeMutationInput,
@@ -38,6 +49,16 @@ async function assertAdmin() {
   if (!authenticated) {
     throw new Error("Unauthorized");
   }
+}
+
+async function assertAnyAdminAccess() {
+  const access = await getAdminAccess();
+
+  if (!access) {
+    throw new Error("Unauthorized");
+  }
+
+  return access;
 }
 
 function revalidatePropertyPaths(oldSlug?: string | null, newSlug?: string | null) {
@@ -96,6 +117,42 @@ function revalidateAgentPaths(slugs: string[] = []) {
   }
 }
 
+function uniqueAgentIds(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push(normalized);
+  }
+
+  return output;
+}
+
+function uniqueAgentSnapshots(agents: PropertyAgent[]) {
+  const seen = new Set<string>();
+  const output: PropertyAgent[] = [];
+
+  for (const agent of agents) {
+    const key = agent.id?.trim() || `${agent.name}-${agent.email ?? ""}`;
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    output.push(agent);
+  }
+
+  return output;
+}
+
 export async function getData() {
   return getAllProperties({ includeDrafts: true });
 }
@@ -108,25 +165,65 @@ export async function loginAdmin(formData: FormData) {
     redirect("/admin/login?error=invalid");
   }
 
+  await clearAgentSession();
   await createAdminSession();
   redirect("/admin");
 }
 
+export async function loginAgent(formData: FormData) {
+  const username = String(formData.get("username") ?? "");
+  const password = String(formData.get("password") ?? "");
+  const agent = await loginAgentWithCredentials(username, password);
+
+  if (!agent) {
+    redirect("/admin/login?agentError=invalid");
+  }
+
+  await clearAdminSession();
+  await createAgentSession(agent.id);
+  redirect("/admin/listings");
+}
+
 export async function logoutAdmin() {
   await clearAdminSession();
+  await clearAgentSession();
   redirect("/admin/login");
 }
 
 export async function savePropertyAction(input: PropertyMutationInput) {
-  await assertAdmin();
+  const access = await assertAnyAdminAccess();
 
   const existingPropertiesWithDrafts = await getAllProperties({ includeDrafts: true });
   const previousProperty =
     typeof input.id === "number"
       ? existingPropertiesWithDrafts.find((property: Property) => property.id === input.id)
       : null;
+  const scopedInput =
+    access.role === "agent"
+      ? {
+          ...input,
+          agentId: previousProperty?.agentId ?? access.agent.id,
+          agent: previousProperty?.agent ?? access.agent,
+          agentIds: uniqueAgentIds([
+            previousProperty?.agentId,
+            ...(previousProperty?.agentIds ?? []),
+            access.agent.id,
+          ]),
+          agents: uniqueAgentSnapshots([
+            ...(previousProperty ? [previousProperty.agent] : []),
+            ...(previousProperty?.agents ?? []),
+            access.agent,
+          ]),
+        }
+      : input;
 
-  const property = await upsertProperty(input);
+  if (access.role === "agent") {
+    if (!previousProperty || !isPropertyOwnedByAgent(previousProperty, access.agent.id)) {
+      throw new Error("Unauthorized");
+    }
+  }
+
+  const property = await upsertProperty(scopedInput);
   revalidatePropertyPaths(previousProperty?.slug, property.slug);
 
   return property;
@@ -139,6 +236,18 @@ export async function deletePropertyAction(id: number) {
   revalidatePropertyPaths(deletedProperty?.slug, null);
 
   return deletedProperty;
+}
+
+export async function addAgentToPropertyAction(
+  propertyId: number,
+  agentId: string,
+) {
+  await assertAdmin();
+
+  const property = await addAgentToProperty(propertyId, agentId);
+  revalidateAgentPaths([property.slug]);
+
+  return property;
 }
 
 export async function saveFeaturedAreasAction(

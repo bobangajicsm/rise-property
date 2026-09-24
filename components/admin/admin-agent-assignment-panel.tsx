@@ -52,6 +52,15 @@ function getPropertyAgentId(property: Property) {
   return property.agentId ?? property.agent.id ?? "";
 }
 
+function getPropertyAgentIds(property: Property) {
+  return [
+    property.agentId,
+    property.agent.id,
+    ...(property.agentIds ?? []),
+    ...(property.agents ?? []).map((agent) => agent.id),
+  ].filter((agentId): agentId is string => Boolean(agentId?.trim()));
+}
+
 function matchesFilters(property: Property, filters: AgentAssignmentFilters) {
   const query = filters.query?.trim().toLowerCase();
 
@@ -107,7 +116,7 @@ function matchesFilters(property: Property, filters: AgentAssignmentFilters) {
   if (
     filters.currentAgentId &&
     filters.currentAgentId !== "all" &&
-    getPropertyAgentId(property) !== filters.currentAgentId
+    !getPropertyAgentIds(property).includes(filters.currentAgentId)
   ) {
     return false;
   }
@@ -176,7 +185,7 @@ export function AdminAgentAssignmentPanel({
   const assignedPropertyIds = useMemo(
     () =>
       properties
-        .filter((property) => getPropertyAgentId(property) === agent.id)
+        .filter((property) => getPropertyAgentIds(property).includes(agent.id))
         .map((property) => property.id),
     [agent.id, properties],
   );

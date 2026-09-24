@@ -9,6 +9,7 @@ import {
   Layers,
   LogOut,
   Plus,
+  UserRound,
   Users,
 } from "lucide-react";
 import { logoutAdmin } from "@/app/actions";
@@ -19,6 +20,10 @@ interface AdminShellProps {
   current: "overview" | "listings" | "new" | "edit" | "agents" | "agent-new" | "agent-edit";
   title: string;
   description: string;
+  viewerRole?: "admin" | "agent";
+  viewerName?: string;
+  viewerLabel?: string;
+  viewerImage?: string;
 }
 
 const navigationItems = [
@@ -81,10 +86,23 @@ function getSidebarPreferenceSnapshot() {
   return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
 }
 
+function getInitials(name: string) {
+  return name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 export function AdminShell({
   children,
   current,
   title,
+  viewerRole = "admin",
+  viewerName,
+  viewerLabel,
+  viewerImage,
 }: AdminShellProps) {
   const isCollapsed = useSyncExternalStore(
     subscribeToSidebarPreference,
@@ -96,6 +114,14 @@ export function AdminShell({
     current === "agents" || current === "agent-new" || current === "agent-edit";
   const isEditor = current === "new" || current === "edit";
   const desktopSidebarWidth = isCollapsed ? 92 : 320;
+  const visibleNavigationItems =
+    viewerRole === "agent"
+      ? navigationItems.filter((item) => item.key === "listings")
+      : navigationItems;
+  const profileName = viewerName ?? (viewerRole === "agent" ? "Agent" : "Main Admin");
+  const profileLabel =
+    viewerLabel ?? (viewerRole === "agent" ? "Assigned listings" : "Full admin access");
+  const profileBadge = viewerRole === "agent" ? "Agent" : "Admin";
 
   function toggleSidebar() {
     if (typeof window === "undefined") {
@@ -129,10 +155,12 @@ export function AdminShell({
               Rise Property
             </p>
             <h1 className="mt-3 font-display text-2xl font-bold text-black">
-              Admin
+              {viewerRole === "agent" ? "Agent" : "Admin"}
             </h1>
             <p className="mt-3 text-sm leading-relaxed text-gray-500">
-              Clean listing management for the live catalog.
+              {viewerRole === "agent"
+                ? viewerName ?? "Assigned listing access."
+                : "Clean listing management for the live catalog."}
             </p>
           </div>
 
@@ -157,7 +185,7 @@ export function AdminShell({
             isCollapsed ? "px-3" : "px-5",
           )}
         >
-          {navigationItems.map((item) => {
+          {visibleNavigationItems.map((item) => {
             const Icon = item.icon;
             const isActive =
               item.key === "listings"
@@ -199,6 +227,41 @@ export function AdminShell({
             isCollapsed ? "px-3" : "px-5",
           )}
         >
+          <div
+            className={cn(
+              "mb-3 rounded-2xl border border-black/6 bg-gray-50 p-3 transition-all duration-300",
+              isCollapsed ? "flex justify-center" : "flex items-center gap-3",
+            )}
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-xs font-bold text-white">
+              {viewerImage ? (
+                <img
+                  src={viewerImage}
+                  alt={profileName}
+                  className="h-full w-full object-cover object-top"
+                  referrerPolicy="no-referrer"
+                />
+              ) : viewerRole === "admin" ? (
+                <UserRound className="h-4 w-4" />
+              ) : (
+                getInitials(profileName)
+              )}
+            </span>
+            <div
+              className={cn(
+                "min-w-0 transition-all duration-300",
+                isCollapsed ? "hidden" : "block",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-bold text-black">{profileName}</p>
+                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[8px] font-bold tracking-[0.16em] text-accent uppercase">
+                  {profileBadge}
+                </span>
+              </div>
+              <p className="mt-0.5 truncate text-xs text-gray-500">{profileLabel}</p>
+            </div>
+          </div>
           <form action={logoutAdmin}>
             <button
               type="submit"
@@ -224,18 +287,64 @@ export function AdminShell({
           className="hidden xl:fixed xl:top-0 xl:right-0 xl:left-[var(--admin-sidebar-width)] xl:z-30 xl:block xl:border-b xl:border-black/6 xl:bg-white xl:transition-[left] xl:duration-300 xl:ease-out"
         >
           <div className="mx-auto max-w-[1480px] px-8 py-3">
-            <h2 className="font-display text-lg font-bold text-black">
-              {title}
-            </h2>
+            <div className="flex items-center justify-between gap-4">
+              <h2 className="font-display text-lg font-bold text-black">
+                {title}
+              </h2>
+              <div className="flex items-center gap-3 rounded-full border border-black/6 bg-gray-50 py-1.5 pr-4 pl-1.5">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-[10px] font-bold text-white">
+                  {viewerImage ? (
+                    <img
+                      src={viewerImage}
+                      alt={profileName}
+                      className="h-full w-full object-cover object-top"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : viewerRole === "admin" ? (
+                    <UserRound className="h-3.5 w-3.5" />
+                  ) : (
+                    getInitials(profileName)
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-black">{profileName}</p>
+                  <p className="text-[9px] font-bold tracking-[0.16em] text-gray-400 uppercase">
+                    {profileBadge}
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </header>
 
         <main className="mx-auto max-w-[1480px] px-4 py-4 md:px-6 lg:px-8 xl:pt-[64px] xl:pb-8">
           <div className="xl:hidden">
-            <div className="border border-black/6 bg-white px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between gap-3 border border-black/6 bg-white px-4 py-3 shadow-sm">
               <h2 className="font-display text-lg font-bold text-black">
                 {title}
               </h2>
+              <div className="flex items-center gap-2">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-[10px] font-bold text-white">
+                  {viewerImage ? (
+                    <img
+                      src={viewerImage}
+                      alt={profileName}
+                      className="h-full w-full object-cover object-top"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : viewerRole === "admin" ? (
+                    <UserRound className="h-4 w-4" />
+                  ) : (
+                    getInitials(profileName)
+                  )}
+                </span>
+                <div className="hidden min-w-0 sm:block">
+                  <p className="truncate text-xs font-bold text-black">{profileName}</p>
+                  <p className="text-[9px] font-bold tracking-[0.16em] text-gray-400 uppercase">
+                    {profileBadge}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -264,7 +373,7 @@ export function AdminShell({
       </div>
 
       <nav className="fixed right-4 bottom-4 left-4 z-[1000] flex items-center justify-between rounded-[1.5rem] border border-black/8 bg-white px-5 py-4 shadow-xl xl:hidden">
-        {navigationItems.map((item) => {
+        {visibleNavigationItems.map((item) => {
           const Icon = item.icon;
           const isActive =
             item.key === "listings"

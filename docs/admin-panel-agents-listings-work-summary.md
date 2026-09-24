@@ -333,8 +333,129 @@ U `app/actions.ts` dodane/proširene su akcije:
 - `assignPropertiesToAgentAction`
 - `assignFilteredPropertiesToAgentAction`
 - `transferAgentPropertiesAction`
+- `loginAgent`
 
 Sve akcije rade admin auth provjeru i revalidate relevantne pathove.
+
+## Agent Login I Ograničen Pristup
+
+Dodan je poseban agent login flow za zahtjev klijenta da svaki agent ima svoj username/password i vidi samo svoje listinge.
+
+### Šta Main Admin Može
+
+Main admin u agent editoru sada može:
+
+- uključiti ili isključiti `Agent Login Access`
+- postaviti agent username
+- postaviti password
+- promijeniti password kasnije bez prikaza starog passworda
+- vidjeti u agent listi badge `Login Enabled`
+
+Password se ne čuva plain-text.
+
+Čuva se:
+
+- `password_hash`
+- `password_salt`
+
+Username se normalizuje na lowercase.
+
+### Sigurne DB Promjene
+
+Na `agents` tabelu dodana su samo opciona polja:
+
+- `login_username`
+- `password_hash`
+- `password_salt`
+- `can_login`
+
+Dodani su sa `ADD COLUMN IF NOT EXISTS`.
+
+Dodani su bez resetovanja baze i bez obaveznih vrijednosti za postojeće agente.
+
+Dodana je i parcijalna unique zaštita za `login_username`, samo kada username postoji.
+
+### Agent Login Ekran
+
+Na postojećem `/admin/login` ekranu sada postoje dva odvojena login dijela:
+
+- Main Admin login
+- Agent Access login
+
+Agent login koristi username/password koji main admin kreira u agent profilu.
+
+Nakon uspješnog login-a agent ide na:
+
+- `/admin/listings`
+
+### Šta Agent Vidi
+
+Agent vidi samo:
+
+- admin listings page
+- listinge koji su dodijeljeni njegovom `agent_id`
+- edit ekran za vlastite listinge
+
+Agent ne vidi:
+
+- Overview
+- Agents
+- Create Listing
+- Locations
+- tuđe listinge
+- delete listing akciju
+
+Ako agent ručno proba otvoriti tuđi listing preko URL-a, dobija `notFound`.
+
+### Server-Side Zaštita
+
+Ograničenje nije samo UI.
+
+Dodane su server-side provjere:
+
+- `/admin/listings` filtrira listinge po agentu
+- `/admin/listings/[id]` provjerava ownership prije prikaza
+- `savePropertyAction` dozvoljava agentu update samo za listing koji već pripada tom agentu
+- `savePropertyAction` agentu forsira njegov `agentId`, pa ne može prebaciti listing na drugog agenta
+- `deletePropertyAction` ostaje admin-only
+
+### Upload Slika
+
+Agent može uploadovati slike za svoje listing editovanje preko existing listing image upload endpointa.
+
+Agent ne može uploadovati agent avatar slike, jer `/api/admin/upload-agent-image` ostaje admin-only.
+
+### Session
+
+Agent session koristi poseban cookie:
+
+- `rise-agent-session`
+
+Cookie je potpisan HMAC potpisom i ne traži novu sessions tabelu.
+
+Main admin session i agent session su odvojeni.
+
+Logout briše oba session cookie-ja.
+
+### Snapshot Zaštita
+
+Popravljeno je da `properties.agent` JSON snapshot nikad ne dobije login podatke.
+
+Listing snapshot čuva samo javne agent informacije:
+
+- ime
+- role
+- sliku
+- kontakt
+- capabilities
+- public/profile podatke
+
+Ne čuva:
+
+- username
+- password hash
+- password salt
+- login flags
 
 ## Storage
 

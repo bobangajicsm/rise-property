@@ -5,6 +5,11 @@ import {
   resolvePropertyAgent,
 } from "@/data/agents";
 import { getSql } from "@/lib/neon";
+import {
+  createPasswordHash,
+  normalizeLoginUsername,
+  verifyPasswordHash,
+} from "@/lib/password-security";
 import { slugifyPropertyValue } from "@/lib/property-slug";
 import {
   LISTING_TYPES,
@@ -40,6 +45,10 @@ interface AgentRow {
   is_active: boolean | string | null;
   is_default: boolean | string | null;
   sort_order: number | string | null;
+  login_username: string | null;
+  password_hash: string | null;
+  password_salt: string | null;
+  can_login: boolean | string | null;
 }
 
 interface PropertyAssignmentRow {
@@ -54,6 +63,8 @@ interface PropertyAssignmentRow {
   area: string;
   agent_id: string | null;
   agent: unknown;
+  agent_ids: unknown;
+  agents: unknown;
 }
 
 interface AssignmentResult {
@@ -176,6 +187,90 @@ function parseAgentIdFromSnapshot(value: unknown) {
   return undefined;
 }
 
+function parseAgentSnapshot(value: unknown): PropertyAgent | null {
+  if (typeof value === "string") {
+    try {
+      return parseAgentSnapshot(JSON.parse(value));
+    } catch {
+      return null;
+    }
+  }
+
+  if (value && typeof value === "object") {
+    return resolvePropertyAgent(value as Partial<PropertyAgent>);
+  }
+
+  return null;
+}
+
+function parseAgentSnapshotsFromList(value: unknown) {
+  let entries: unknown[] = [];
+
+  if (Array.isArray(value)) {
+    entries = value;
+  } else if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      entries = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      entries = [];
+    }
+  }
+
+  return entries
+    .map(parseAgentSnapshot)
+    .filter((agent): agent is PropertyAgent => Boolean(agent));
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push(normalized);
+  }
+
+  return output;
+}
+
+function uniqueAgentSnapshots(agents: PropertyAgent[]) {
+  const seen = new Set<string>();
+  const output: PropertyAgent[] = [];
+
+  for (const agent of agents) {
+    const key = agent.id?.trim() || `${agent.name}-${agent.email ?? ""}`;
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    output.push(agent);
+  }
+
+  return output;
+}
+
+function parseAgentIdsFromList(value: unknown) {
+  return parseJsonArray(value);
+}
+
+function getPropertyAssignmentAgentIds(row: PropertyAssignmentRow) {
+  return uniqueStrings([
+    row.agent_id,
+    parseAgentIdFromSnapshot(row.agent),
+    ...parseAgentIdsFromList(row.agent_ids),
+    ...parseAgentSnapshotsFromList(row.agents).map((agent) => agent.id),
+  ]);
+}
+
 function mapAgentRowToAgent(
   row: AgentRow,
   listingCount: number,
@@ -203,6 +298,9 @@ function mapAgentRowToAgent(
     isDefault: normalizeBoolean(row.is_default, false),
     sortOrder: normalizeSortOrder(row.sort_order),
     listingCount,
+    loginUsername: normalizeLoginUsername(row.login_username) || undefined,
+    canLogin: normalizeBoolean(row.can_login, false),
+    hasPassword: Boolean(row.password_hash && row.password_salt),
   };
 }
 
@@ -211,6 +309,9 @@ function mapSeedAgent(agent: ManagedPropertyAgent): ManagedPropertyAgent {
     ...agent,
     capabilities: normalizeCapabilities(agent.capabilities),
     listingCount: 0,
+    loginUsername: agent.loginUsername,
+    canLogin: agent.canLogin ?? false,
+    hasPassword: agent.hasPassword ?? false,
   };
 }
 
@@ -260,6 +361,39 @@ async function ensurePropertyAgentColumn() {
   await sql`
     ALTER TABLE IF EXISTS properties
     ADD COLUMN IF NOT EXISTS agent_id TEXT
+  `;
+
+  await sql`
+    ALTER TABLE IF EXISTS properties
+    ADD COLUMN IF NOT EXISTS agent_ids JSONB NOT NULL DEFAULT '[]'::jsonb
+  `;
+
+  await sql`
+    ALTER TABLE IF EXISTS properties
+    ADD COLUMN IF NOT EXISTS agents JSONB NOT NULL DEFAULT '[]'::jsonb
+  `;
+
+  await sql`
+    UPDATE properties
+    SET agent_ids = jsonb_build_array(COALESCE(NULLIF(agent_id, ''), agent->>'id'))
+    WHERE (
+      agent_ids IS NULL
+      OR jsonb_typeof(agent_ids) <> 'array'
+      OR jsonb_array_length(agent_ids) = 0
+    )
+    AND COALESCE(NULLIF(agent_id, ''), agent->>'id') IS NOT NULL
+  `;
+
+  await sql`
+    UPDATE properties
+    SET agents = jsonb_build_array(agent)
+    WHERE (
+      agents IS NULL
+      OR jsonb_typeof(agents) <> 'array'
+      OR jsonb_array_length(agents) = 0
+    )
+    AND agent IS NOT NULL
+    AND agent <> '{}'::jsonb
   `;
 }
 
@@ -335,6 +469,10 @@ async function ensureAgentsSchema() {
           is_active BOOLEAN NOT NULL DEFAULT TRUE,
           is_default BOOLEAN NOT NULL DEFAULT FALSE,
           sort_order INTEGER NOT NULL DEFAULT 0,
+          login_username TEXT,
+          password_hash TEXT,
+          password_salt TEXT,
+          can_login BOOLEAN NOT NULL DEFAULT FALSE,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
@@ -350,8 +488,17 @@ async function ensureAgentsSchema() {
       await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE`;
       await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT FALSE`;
       await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0`;
+      await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS login_username TEXT`;
+      await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS password_hash TEXT`;
+      await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS password_salt TEXT`;
+      await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS can_login BOOLEAN DEFAULT FALSE`;
       await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`;
       await sql`ALTER TABLE agents ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()`;
+      await sql`
+        CREATE UNIQUE INDEX IF NOT EXISTS agents_login_username_unique
+        ON agents (login_username)
+        WHERE login_username IS NOT NULL AND login_username <> ''
+      `;
 
       const [{ count }] = asRows<{ count: string }>(await sql`
         SELECT COUNT(*)::text AS count FROM agents
@@ -414,6 +561,8 @@ async function ensureAgentsSchema() {
           is_active = COALESCE(is_active, TRUE),
           is_default = COALESCE(is_default, FALSE),
           sort_order = COALESCE(sort_order, 0),
+          login_username = NULLIF(LOWER(TRIM(COALESCE(login_username, ''))), ''),
+          can_login = COALESCE(can_login, FALSE),
           updated_at = COALESCE(updated_at, NOW())
       `;
 
@@ -470,10 +619,31 @@ async function getAgentListingCountMap() {
   await ensurePropertyAgentColumn();
 
   const rows = asRows<{ agent_id: string | null; count: string }>(await sql`
-    SELECT COALESCE(NULLIF(agent_id, ''), agent->>'id') AS agent_id,
-           COUNT(*)::text AS count
-    FROM properties
-    GROUP BY COALESCE(NULLIF(agent_id, ''), agent->>'id')
+    WITH assignments AS (
+      SELECT DISTINCT
+        id,
+        COALESCE(NULLIF(agent_id, ''), agent->>'id') AS agent_id
+      FROM properties
+      WHERE COALESCE(NULLIF(agent_id, ''), agent->>'id') IS NOT NULL
+
+      UNION
+
+      SELECT DISTINCT
+        properties.id,
+        agent_ids.value AS agent_id
+      FROM properties
+      CROSS JOIN LATERAL jsonb_array_elements_text(
+        CASE
+          WHEN jsonb_typeof(properties.agent_ids) = 'array'
+          THEN properties.agent_ids
+          ELSE '[]'::jsonb
+        END
+      ) AS agent_ids(value)
+    )
+    SELECT agent_id, COUNT(*)::text AS count
+    FROM assignments
+    WHERE agent_id IS NOT NULL AND agent_id <> ''
+    GROUP BY agent_id
   `);
 
   for (const row of rows) {
@@ -504,7 +674,8 @@ export async function getAgents(options?: {
       asRows<AgentRow>(await sql`
         SELECT id, slug, name, role, image_url, image_key, phone, email, whatsapp,
                bio, languages, specialties, areas, capabilities, is_active,
-               is_default, sort_order
+               is_default, sort_order, login_username, password_hash,
+               password_salt, can_login
         FROM agents
         ORDER BY is_default DESC, sort_order ASC, name ASC
       `),
@@ -617,7 +788,32 @@ function normalizeAgentMutationInput(
     isActive: input.isDefault ? true : input.isActive ?? true,
     isDefault: input.isDefault ?? false,
     sortOrder: normalizeSortOrder(input.sortOrder, fallbackSortOrder),
+    loginUsername: normalizeLoginUsername(input.loginUsername) || undefined,
+    loginPassword: input.loginPassword?.trim() || undefined,
+    canLogin: input.canLogin ?? false,
   };
+}
+
+async function getAgentCredentialsById(id: string) {
+  const sql = getSql();
+
+  if (!sql) {
+    return null;
+  }
+
+  await ensureAgentsSchema();
+
+  const [row] = asRows<{
+    password_hash: string | null;
+    password_salt: string | null;
+  }>(await sql`
+    SELECT password_hash, password_salt
+    FROM agents
+    WHERE id = ${id}
+    LIMIT 1
+  `);
+
+  return row ?? null;
 }
 
 export async function upsertAgent(
@@ -643,6 +839,7 @@ export async function upsertAgent(
     id,
     slug,
     listingCount: existingAgent?.listingCount ?? 0,
+    hasPassword: existingAgent?.hasPassword ?? Boolean(normalized.loginPassword),
   };
 
   if (!sql) {
@@ -650,6 +847,42 @@ export async function upsertAgent(
   }
 
   await ensureAgentsSchema();
+
+  const existingCredentials = await getAgentCredentialsById(nextAgent.id);
+  const nextCredentials = normalized.loginPassword
+    ? createPasswordHash(normalized.loginPassword)
+    : {
+        hash: existingCredentials?.password_hash ?? null,
+        salt: existingCredentials?.password_salt ?? null,
+      };
+  const canLogin = Boolean(
+    normalized.canLogin &&
+      normalized.loginUsername &&
+      nextCredentials.hash &&
+      nextCredentials.salt,
+  );
+
+  if (normalized.canLogin && !normalized.loginUsername) {
+    throw new Error("Agent login username is required when login access is enabled.");
+  }
+
+  if (normalized.canLogin && (!nextCredentials.hash || !nextCredentials.salt)) {
+    throw new Error("Set an agent password before enabling login access.");
+  }
+
+  if (normalized.loginUsername) {
+    const [usernameOwner] = asRows<{ id: string }>(await sql`
+      SELECT id
+      FROM agents
+      WHERE login_username = ${normalized.loginUsername}
+        AND id <> ${nextAgent.id}
+      LIMIT 1
+    `);
+
+    if (usernameOwner) {
+      throw new Error("This agent login username is already in use.");
+    }
+  }
 
   if (nextAgent.isDefault) {
     await sql`
@@ -678,6 +911,10 @@ export async function upsertAgent(
       is_active,
       is_default,
       sort_order,
+      login_username,
+      password_hash,
+      password_salt,
+      can_login,
       updated_at
     ) VALUES (
       ${nextAgent.id},
@@ -697,6 +934,10 @@ export async function upsertAgent(
       ${nextAgent.isActive},
       ${nextAgent.isDefault},
       ${nextAgent.sortOrder},
+      ${normalized.loginUsername ?? null},
+      ${nextCredentials.hash},
+      ${nextCredentials.salt},
+      ${canLogin},
       NOW()
     )
     ON CONFLICT (id) DO UPDATE SET
@@ -716,6 +957,10 @@ export async function upsertAgent(
       is_active = EXCLUDED.is_active,
       is_default = EXCLUDED.is_default,
       sort_order = EXCLUDED.sort_order,
+      login_username = EXCLUDED.login_username,
+      password_hash = EXCLUDED.password_hash,
+      password_salt = EXCLUDED.password_salt,
+      can_login = EXCLUDED.can_login,
       updated_at = NOW()
   `;
 
@@ -724,6 +969,39 @@ export async function upsertAgent(
 
   const savedAgent = await getAgentById(nextAgent.id, { includeInactive: true });
   return savedAgent ?? nextAgent;
+}
+
+export async function validateAgentCredentials(
+  username: string,
+  password: string,
+): Promise<ManagedPropertyAgent | null> {
+  const sql = getSql();
+  const normalizedUsername = normalizeLoginUsername(username);
+
+  if (!sql || !normalizedUsername || !password) {
+    return null;
+  }
+
+  await ensureAgentsSchema();
+
+  const [row] = asRows<AgentRow>(await sql`
+    SELECT id, slug, name, role, image_url, image_key, phone, email, whatsapp,
+           bio, languages, specialties, areas, capabilities, is_active,
+           is_default, sort_order, login_username, password_hash,
+           password_salt, can_login
+    FROM agents
+    WHERE login_username = ${normalizedUsername}
+      AND can_login = TRUE
+      AND is_active = TRUE
+    LIMIT 1
+  `);
+
+  if (!row || !verifyPasswordHash(password, row.password_salt, row.password_hash)) {
+    return null;
+  }
+
+  const countMap = await getAgentListingCountMap();
+  return mapAgentRowToAgent(row, countMap.get(row.id) ?? 0);
 }
 
 async function getAssignedPropertyCount(agentId: string) {
@@ -813,10 +1091,61 @@ export async function updatePropertyAgentSnapshots(
   const rows = asRows<{ slug: string }>(await sql`
     UPDATE properties
     SET
-      agent_id = ${agent.id},
-      agent = ${JSON.stringify(snapshot)}::jsonb,
+      agent_id = CASE
+        WHEN agent_id = ${agent.id} OR agent->>'id' = ${agent.id}
+        THEN ${agent.id}
+        ELSE agent_id
+      END,
+      agent = CASE
+        WHEN agent_id = ${agent.id} OR agent->>'id' = ${agent.id}
+        THEN ${JSON.stringify(snapshot)}::jsonb
+        ELSE agent
+      END,
+      agents = COALESCE(
+        (
+          SELECT jsonb_agg(
+            CASE
+              WHEN entry.value->>'id' = ${agent.id}
+              THEN ${JSON.stringify(snapshot)}::jsonb
+              ELSE entry.value
+            END
+            ORDER BY entry.ordinality
+          )
+          FROM jsonb_array_elements(
+            CASE
+              WHEN jsonb_typeof(properties.agents) = 'array'
+              THEN properties.agents
+              ELSE '[]'::jsonb
+            END
+          ) WITH ORDINALITY AS entry(value, ordinality)
+        ),
+        '[]'::jsonb
+      ),
       updated_at = NOW()
-    WHERE agent_id = ${agent.id} OR agent->>'id' = ${agent.id}
+    WHERE agent_id = ${agent.id}
+       OR agent->>'id' = ${agent.id}
+       OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(properties.agent_ids) = 'array'
+            THEN properties.agent_ids
+            ELSE '[]'::jsonb
+          END
+        ) AS assigned_agent_ids(value)
+        WHERE assigned_agent_ids.value = ${agent.id}
+       )
+       OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(properties.agents) = 'array'
+            THEN properties.agents
+            ELSE '[]'::jsonb
+          END
+        ) AS assigned_agents(value)
+        WHERE assigned_agents.value->>'id' = ${agent.id}
+       )
     RETURNING slug
   `);
 
@@ -849,15 +1178,38 @@ export async function assignPropertiesToAgent(
   await ensurePropertyAgentColumn();
 
   const uniqueIds = [...new Set(propertyIds.filter((id) => Number.isFinite(id)))];
+  const assignmentRows = await getPropertyAssignmentRows();
+  const assignmentRowById = new Map(
+    assignmentRows.map((row) => [Number(row.id), row]),
+  );
   const slugs: string[] = [];
   const snapshot = toAgentSnapshot(agent);
 
   for (const propertyId of uniqueIds) {
+    const assignmentRow = assignmentRowById.get(propertyId);
+    const currentAgentIds = uniqueStrings([
+      assignmentRow?.agent_id,
+      assignmentRow ? parseAgentIdFromSnapshot(assignmentRow.agent) : undefined,
+      ...(assignmentRow ? parseAgentIdsFromList(assignmentRow.agent_ids) : []),
+      agent.id,
+    ]);
+    const currentAgents = uniqueAgentSnapshots([
+      ...(assignmentRow
+        ? [
+            parseAgentSnapshot(assignmentRow.agent),
+            ...parseAgentSnapshotsFromList(assignmentRow.agents),
+          ].filter((entry): entry is PropertyAgent => Boolean(entry))
+        : []),
+      snapshot,
+    ]);
+
     const rows = asRows<{ slug: string }>(await sql`
       UPDATE properties
       SET
         agent_id = ${agent.id},
         agent = ${JSON.stringify(snapshot)}::jsonb,
+        agent_ids = ${JSON.stringify(currentAgentIds)}::jsonb,
+        agents = ${JSON.stringify(currentAgents)}::jsonb,
         updated_at = NOW()
       WHERE id = ${propertyId}
       RETURNING slug
@@ -885,7 +1237,7 @@ async function getPropertyAssignmentRows() {
 
   return asRows<PropertyAssignmentRow>(await sql`
     SELECT id, slug, title, location, listing_type, visibility_status,
-           usage, type, area, agent_id, agent
+           usage, type, area, agent_id, agent, agent_ids, agents
     FROM properties
     ORDER BY id ASC
   `);
@@ -952,8 +1304,7 @@ function rowMatchesAssignmentFilters(
   }
 
   if (filters.currentAgentId && filters.currentAgentId !== "all") {
-    const rowAgentId = row.agent_id ?? parseAgentIdFromSnapshot(row.agent);
-    if (rowAgentId !== filters.currentAgentId) {
+    if (!getPropertyAssignmentAgentIds(row).includes(filters.currentAgentId)) {
       return false;
     }
   }
@@ -978,9 +1329,75 @@ export async function transferPropertiesBetweenAgents(
   fromAgentId: string,
   toAgentId: string,
 ) {
-  return assignAllMatchingPropertiesToAgent(toAgentId, {
-    currentAgentId: fromAgentId,
-  });
+  const sql = getSql();
+  const agent = await getAgentById(toAgentId, { includeInactive: true });
+
+  if (!agent) {
+    throw new Error("Agent not found.");
+  }
+
+  if (!agent.isActive) {
+    throw new Error("Activate the receiving agent before transferring listings.");
+  }
+
+  if (!sql) {
+    return { count: 0, slugs: [] };
+  }
+
+  await ensureAgentsSchema();
+  await ensurePropertyAgentColumn();
+
+  const rows = (await getPropertyAssignmentRows()).filter((row) =>
+    getPropertyAssignmentAgentIds(row).includes(fromAgentId),
+  );
+  const snapshot = toAgentSnapshot(agent);
+  const slugs: string[] = [];
+
+  for (const row of rows) {
+    const currentPrimaryId = row.agent_id ?? parseAgentIdFromSnapshot(row.agent);
+    const currentPrimaryAgent = parseAgentSnapshot(row.agent);
+    const currentAgents = uniqueAgentSnapshots([
+      ...(currentPrimaryAgent ? [currentPrimaryAgent] : []),
+      ...parseAgentSnapshotsFromList(row.agents),
+    ]);
+    const nextAgentIds = uniqueStrings([
+      ...getPropertyAssignmentAgentIds(row).filter((id) => id !== fromAgentId),
+      agent.id,
+    ]);
+    const nextAgents = uniqueAgentSnapshots([
+      ...currentAgents.filter((entry) => entry.id !== fromAgentId),
+      snapshot,
+    ]);
+    const nextPrimaryAgentId =
+      currentPrimaryId === fromAgentId
+        ? agent.id
+        : currentPrimaryId ?? nextAgentIds[0] ?? agent.id;
+    const nextPrimaryAgent =
+      currentPrimaryId === fromAgentId
+        ? snapshot
+        : currentPrimaryAgent ?? nextAgents[0] ?? snapshot;
+
+    const updatedRows = asRows<{ slug: string }>(await sql`
+      UPDATE properties
+      SET
+        agent_id = ${nextPrimaryAgentId},
+        agent = ${JSON.stringify(nextPrimaryAgent)}::jsonb,
+        agent_ids = ${JSON.stringify(nextAgentIds)}::jsonb,
+        agents = ${JSON.stringify(nextAgents)}::jsonb,
+        updated_at = NOW()
+      WHERE id = ${Number(row.id)}
+      RETURNING slug
+    `);
+
+    if (updatedRows[0]?.slug) {
+      slugs.push(updatedRows[0].slug);
+    }
+  }
+
+  return {
+    count: slugs.length,
+    slugs,
+  };
 }
 
 export function resolveAgentSnapshot(agent?: Partial<PropertyAgent> | null) {

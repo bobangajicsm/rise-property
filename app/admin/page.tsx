@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AdminOverview } from "@/components/admin/admin-overview";
 import { AdminShell } from "@/components/admin/admin-shell";
+import { isAgentAuthenticated } from "@/lib/agent-auth";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { getPropertyTypeConfigurations } from "@/lib/property-types-store";
 import { getAllProperties } from "@/lib/properties-store";
@@ -17,6 +18,10 @@ export const metadata: Metadata = {
 
 export default async function AdminPage() {
   if (!(await isAdminAuthenticated())) {
+    if (await isAgentAuthenticated()) {
+      redirect("/admin/listings");
+    }
+
     redirect("/admin/login");
   }
 

@@ -36,6 +36,8 @@ export const PROPERTY_AGENTS: ManagedPropertyAgent[] = [
     isDefault: true,
     sortOrder: 0,
     listingCount: 0,
+    canLogin: false,
+    hasPassword: false,
   },
   {
     id: "oumaima-lounissi",
@@ -56,6 +58,8 @@ export const PROPERTY_AGENTS: ManagedPropertyAgent[] = [
     isDefault: false,
     sortOrder: 1,
     listingCount: 0,
+    canLogin: false,
+    hasPassword: false,
   },
 ];
 

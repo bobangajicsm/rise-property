@@ -42,6 +42,8 @@ interface PropertyRow {
   video_thumbnail: string | null;
   agent_id: string | null;
   agent: unknown;
+  agent_ids: unknown;
+  agents: unknown;
   created_at?: string;
   updated_at?: string;
 }
@@ -96,6 +98,88 @@ function parseAgent(value: unknown): PropertyAgent {
   return fallbackAgent;
 }
 
+function parseAgentArray(value: unknown): PropertyAgent[] {
+  let entries: unknown[] = [];
+
+  if (Array.isArray(value)) {
+    entries = value;
+  } else if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      entries = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      entries = [];
+    }
+  }
+
+  return entries
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => parseAgent(entry));
+}
+
+function toPropertyAgentSnapshot(agent: PropertyAgent): PropertyAgent {
+  return {
+    id: agent.id,
+    slug: agent.slug,
+    name: agent.name,
+    role: agent.role,
+    image: agent.image,
+    imageKey: agent.imageKey,
+    phone: agent.phone,
+    email: agent.email,
+    whatsapp: agent.whatsapp,
+    bio: agent.bio,
+    languages: agent.languages,
+    specialties: agent.specialties,
+    areas: agent.areas,
+    capabilities: agent.capabilities,
+    isActive: agent.isActive,
+    isDefault: agent.isDefault,
+    sortOrder: agent.sortOrder,
+    listingCount: agent.listingCount,
+  };
+}
+
+function getAgentSnapshotId(agent?: PropertyAgent | null) {
+  return agent?.id?.trim() || undefined;
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push(normalized);
+  }
+
+  return output;
+}
+
+function uniqueAgents(agents: PropertyAgent[]) {
+  const seen = new Set<string>();
+  const output: PropertyAgent[] = [];
+
+  for (const agent of agents) {
+    const key = getAgentSnapshotId(agent) ?? `${agent.name}-${agent.email ?? ""}`;
+
+    if (!key || seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    output.push(agent);
+  }
+
+  return output;
+}
+
 function normalizeNumericValue(value: number | string | null | undefined) {
   if (typeof value === "number") {
     return value;
@@ -119,6 +203,37 @@ function normalizeNullableNumber(value: number | string | null | undefined) {
 }
 
 function mapRowToProperty(row: PropertyRow): Property {
+  const primaryAgent = parseAgent(row.agent);
+  const storedAgents = parseAgentArray(row.agents);
+  const storedAgentIds = parseJsonArray(row.agent_ids);
+  const primaryAgentId = row.agent_id?.trim() || getAgentSnapshotId(primaryAgent);
+  const agentIds = uniqueStrings([
+    primaryAgentId,
+    ...storedAgentIds,
+    ...storedAgents.map((agent) => getAgentSnapshotId(agent)),
+  ]);
+  const agentsById = new Map<string, PropertyAgent>();
+
+  for (const agent of [primaryAgent, ...storedAgents]) {
+    const agentId = getAgentSnapshotId(agent);
+
+    if (agentId) {
+      agentsById.set(agentId, agent);
+    }
+  }
+
+  const orderedAgents = uniqueAgents([
+    ...agentIds
+      .map((agentId) => agentsById.get(agentId))
+      .filter((agent): agent is PropertyAgent => Boolean(agent)),
+    ...storedAgents,
+    primaryAgent,
+  ]);
+  const resolvedPrimaryAgent =
+    (agentIds[0] ? agentsById.get(agentIds[0]) : undefined) ??
+    orderedAgents[0] ??
+    primaryAgent;
+
   return {
     id: normalizeNumericValue(row.id),
     slug: row.slug,
@@ -148,8 +263,13 @@ function mapRowToProperty(row: PropertyRow): Property {
     furnished: row.furnished ?? undefined,
     videoUrl: row.video_url ?? undefined,
     videoThumbnail: row.video_thumbnail ?? undefined,
-    agentId: row.agent_id ?? parseAgent(row.agent).id,
-    agent: parseAgent(row.agent),
+    agentId: agentIds[0] ?? getAgentSnapshotId(resolvedPrimaryAgent),
+    agent: resolvedPrimaryAgent,
+    agentIds:
+      agentIds.length > 0
+        ? agentIds
+        : uniqueStrings(orderedAgents.map((agent) => getAgentSnapshotId(agent))),
+    agents: orderedAgents,
   };
 }
 
@@ -195,6 +315,8 @@ async function ensureSchema() {
           video_thumbnail TEXT,
           agent_id TEXT,
           agent JSONB NOT NULL DEFAULT '{}'::jsonb,
+          agent_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+          agents JSONB NOT NULL DEFAULT '[]'::jsonb,
           created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
           updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
@@ -219,6 +341,39 @@ async function ensureSchema() {
       await sql`
         ALTER TABLE properties
         ADD COLUMN IF NOT EXISTS agent_id TEXT
+      `;
+
+      await sql`
+        ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS agent_ids JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+
+      await sql`
+        ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS agents JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+
+      await sql`
+        UPDATE properties
+        SET agent_ids = jsonb_build_array(COALESCE(NULLIF(agent_id, ''), agent->>'id'))
+        WHERE (
+          agent_ids IS NULL
+          OR jsonb_typeof(agent_ids) <> 'array'
+          OR jsonb_array_length(agent_ids) = 0
+        )
+        AND COALESCE(NULLIF(agent_id, ''), agent->>'id') IS NOT NULL
+      `;
+
+      await sql`
+        UPDATE properties
+        SET agents = jsonb_build_array(agent)
+        WHERE (
+          agents IS NULL
+          OR jsonb_typeof(agents) <> 'array'
+          OR jsonb_array_length(agents) = 0
+        )
+        AND agent IS NOT NULL
+        AND agent <> '{}'::jsonb
       `;
 
       await sql`
@@ -264,7 +419,9 @@ async function ensureSchema() {
               video_url,
               video_thumbnail,
               agent_id,
-              agent
+              agent,
+              agent_ids,
+              agents
             ) VALUES (
               ${property.id},
               ${property.slug},
@@ -292,7 +449,9 @@ async function ensureSchema() {
               ${property.videoUrl ?? null},
               ${property.videoThumbnail ?? null},
               ${property.agent.id ?? null},
-              ${JSON.stringify(property.agent)}::jsonb
+              ${JSON.stringify(property.agent)}::jsonb,
+              ${JSON.stringify(property.agentIds ?? [property.agent.id].filter(Boolean))}::jsonb,
+              ${JSON.stringify(property.agents ?? [property.agent])}::jsonb
             )
             ON CONFLICT (slug) DO NOTHING
           `;
@@ -320,10 +479,44 @@ async function sanitizePropertyInput(input: PropertyMutationInput) {
     typeof input.id === "number" && Number.isFinite(input.id) ? input.id : null;
   const fallbackImages =
     input.images.length > 0 ? input.images : [MOCK_PROPERTIES[0]?.images[0] ?? ""];
-  const liveAgent = input.agentId
-    ? await getAgentById(input.agentId, { includeInactive: true })
-    : null;
-  const resolvedAgent = liveAgent ?? resolvePropertyAgent(input.agent);
+  const requestedAgentIds = uniqueStrings([
+    input.agentId,
+    ...(input.agentIds ?? []),
+    ...(input.agents ?? []).map((agent) => getAgentSnapshotId(agent)),
+  ]);
+  const liveAgents = await Promise.all(
+    requestedAgentIds.map((agentId) =>
+      getAgentById(agentId, { includeInactive: true }),
+    ),
+  );
+  const fallbackAgent = toPropertyAgentSnapshot(resolvePropertyAgent(input.agent));
+  const resolvedAgents = uniqueAgents([
+    ...liveAgents
+      .filter((agent): agent is NonNullable<typeof agent> => Boolean(agent))
+      .map((agent) => toPropertyAgentSnapshot(agent)),
+    ...(input.agents ?? [])
+      .map((agent) => toPropertyAgentSnapshot(resolvePropertyAgent(agent)))
+      .filter((agent) => getAgentSnapshotId(agent)),
+    fallbackAgent,
+  ]);
+  const resolvedAgentIds = uniqueStrings([
+    input.agentId,
+    ...requestedAgentIds,
+    ...resolvedAgents.map((agent) => getAgentSnapshotId(agent)),
+  ]);
+  const orderedAgents = uniqueAgents([
+    ...resolvedAgentIds
+      .map((agentId) =>
+        resolvedAgents.find((agent) => getAgentSnapshotId(agent) === agentId),
+      )
+      .filter((agent): agent is PropertyAgent => Boolean(agent)),
+    fallbackAgent,
+  ]);
+  const resolvedAgent = orderedAgents[0] ?? fallbackAgent;
+  const agentIds = uniqueStrings([
+    getAgentSnapshotId(resolvedAgent),
+    ...resolvedAgentIds,
+  ]);
 
   return {
     id: normalizedId,
@@ -352,8 +545,10 @@ async function sanitizePropertyInput(input: PropertyMutationInput) {
       typeof input.furnished === "boolean" ? input.furnished : undefined,
     videoUrl: input.videoUrl?.trim() || undefined,
     videoThumbnail: input.videoThumbnail?.trim() || undefined,
-    agentId: liveAgent?.id ?? input.agentId ?? resolvedAgent.id,
+    agentId: getAgentSnapshotId(resolvedAgent),
     agent: resolvedAgent,
+    agentIds,
+    agents: orderedAgents,
   };
 }
 
@@ -441,6 +636,46 @@ export async function getRelatedProperties(
     .slice(0, limit);
 }
 
+export async function addAgentToProperty(
+  propertyId: number,
+  agentId: string,
+): Promise<Property> {
+  const property = await getPropertyById(propertyId);
+  const agent = await getAgentById(agentId, { includeInactive: true });
+
+  if (!property) {
+    throw new Error("Listing not found.");
+  }
+
+  if (!agent) {
+    throw new Error("Agent not found.");
+  }
+
+  if (!agent.isActive) {
+    throw new Error("Activate the agent before assigning listings.");
+  }
+
+  const agentSnapshot = toPropertyAgentSnapshot(agent);
+  const nextAgentIds = uniqueStrings([
+    property.agentId,
+    ...(property.agentIds ?? []),
+    agentSnapshot.id,
+  ]);
+  const nextAgents = uniqueAgents([
+    property.agent,
+    ...(property.agents ?? []),
+    agentSnapshot,
+  ]);
+
+  return upsertProperty({
+    ...property,
+    agentId: property.agentId ?? nextAgentIds[0],
+    agent: property.agent,
+    agentIds: nextAgentIds,
+    agents: nextAgents,
+  });
+}
+
 export async function upsertProperty(
   input: PropertyMutationInput,
 ): Promise<Property> {
@@ -459,6 +694,8 @@ export async function upsertProperty(
       usage: sanitized.usage,
       agentId: sanitized.agentId,
       agent: sanitized.agent,
+      agentIds: sanitized.agentIds,
+      agents: sanitized.agents,
     };
   }
 
@@ -494,6 +731,8 @@ export async function upsertProperty(
         video_thumbnail = ${sanitized.videoThumbnail ?? null},
         agent_id = ${sanitized.agentId ?? null},
         agent = ${JSON.stringify(sanitized.agent)}::jsonb,
+        agent_ids = ${JSON.stringify(sanitized.agentIds)}::jsonb,
+        agents = ${JSON.stringify(sanitized.agents)}::jsonb,
         updated_at = NOW()
       WHERE id = ${sanitized.id}
       RETURNING *
@@ -531,7 +770,9 @@ export async function upsertProperty(
       video_url,
       video_thumbnail,
       agent_id,
-      agent
+      agent,
+      agent_ids,
+      agents
     ) VALUES (
       ${`temp-${buildPropertySlug(sanitized.title)}-${Date.now()}`},
       ${sanitized.title},
@@ -558,7 +799,9 @@ export async function upsertProperty(
       ${sanitized.videoUrl ?? null},
       ${sanitized.videoThumbnail ?? null},
       ${sanitized.agentId ?? null},
-      ${JSON.stringify(sanitized.agent)}::jsonb
+      ${JSON.stringify(sanitized.agent)}::jsonb,
+      ${JSON.stringify(sanitized.agentIds)}::jsonb,
+      ${JSON.stringify(sanitized.agents)}::jsonb
     )
     RETURNING *
   `);

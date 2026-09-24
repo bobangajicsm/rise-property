@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { isAdminAuthenticated } from "@/lib/admin-auth";
+import { getAdminAccess } from "@/lib/admin-access";
 import { getStorageConfig, uploadImageToStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const maxUploadSize = 10 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  if (!(await isAdminAuthenticated())) {
+  if (!(await getAdminAccess())) {
     return NextResponse.json(
       { success: false, error: "Unauthorized." },
       { status: 401 },

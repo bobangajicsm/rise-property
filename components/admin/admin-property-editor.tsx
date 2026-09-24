@@ -80,12 +80,15 @@ interface PropertyFormState {
   videoUrl: string;
   videoThumbnail: string;
   agentId: string;
+  agentIds: string[];
 }
 
 interface AdminPropertyEditorProps {
   property?: Property;
   propertyTypes: PropertyTypeConfig[];
   agents: ManagedPropertyAgent[];
+  viewerRole?: "admin" | "agent";
+  lockedAgentId?: string;
 }
 
 type FieldErrorMap = Partial<Record<
@@ -181,11 +184,30 @@ function getAgentByIdFromList(
   return agents.find((agent) => agent.id === id);
 }
 
+function uniqueAgentIds(values: Array<string | null | undefined>) {
+  const seen = new Set<string>();
+  const output: string[] = [];
+
+  for (const value of values) {
+    const normalized = value?.trim();
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    output.push(normalized);
+  }
+
+  return output;
+}
+
 function createEmptyFormState(
   propertyTypes: PropertyTypeConfig[],
   agents: ManagedPropertyAgent[],
 ): PropertyFormState {
   const usage: Property["usage"] = PROPERTY_USAGE_RESIDENTIAL;
+  const agentId = getDefaultAgentId(agents);
 
   return {
     title: "",
@@ -210,7 +232,8 @@ function createEmptyFormState(
     furnished: false,
     videoUrl: "",
     videoThumbnail: "",
-    agentId: getDefaultAgentId(agents),
+    agentId,
+    agentIds: uniqueAgentIds([agentId]),
   };
 }
 
@@ -225,6 +248,11 @@ function propertyToFormState(
     getAgentByIdFromList(agents, property.agentId)?.id ??
     getAgentByIdFromList(agents, propertyAgent.id)?.id ??
     propertyAgent.id;
+  const agentIds = uniqueAgentIds([
+    agentId,
+    ...(property.agentIds ?? []),
+    ...(property.agents ?? []).map((agent) => agent.id),
+  ]);
 
   return {
     id: property.id,
@@ -253,6 +281,7 @@ function propertyToFormState(
     videoUrl: property.videoUrl ?? "",
     videoThumbnail: property.videoThumbnail ?? "",
     agentId,
+    agentIds,
   };
 }
 
@@ -292,6 +321,7 @@ function serializeFormState(form: PropertyFormState) {
     videoUrl: form.videoUrl,
     videoThumbnail: form.videoThumbnail,
     agentId: form.agentId,
+    agentIds: form.agentIds,
   });
 }
 
@@ -323,6 +353,7 @@ function countChangedFields(
     "videoUrl",
     "videoThumbnail",
     "agentId",
+    "agentIds",
   ];
 
   return comparableKeys.reduce((count, key) => {
@@ -393,8 +424,15 @@ function formStateToPayload(
   form: PropertyFormState,
   agents: ManagedPropertyAgent[],
 ): PropertyMutationInput {
+  const selectedAgentIds = uniqueAgentIds([form.agentId, ...form.agentIds]);
   const selectedAgent =
     getAgentByIdFromList(agents, form.agentId) ?? resolvePropertyAgent({ id: form.agentId });
+  const selectedAgents = selectedAgentIds
+    .map(
+      (agentId) =>
+        getAgentByIdFromList(agents, agentId) ?? resolvePropertyAgent({ id: agentId }),
+    )
+    .filter((agent) => agent.id);
 
   return {
     id: form.id,
@@ -423,6 +461,8 @@ function formStateToPayload(
     videoThumbnail: form.videoThumbnail.trim() || undefined,
     agentId: selectedAgent.id,
     agent: { ...selectedAgent },
+    agentIds: selectedAgentIds,
+    agents: selectedAgents.map((agent) => ({ ...agent })),
   };
 }
 
@@ -528,6 +568,8 @@ export function AdminPropertyEditor({
   property,
   propertyTypes,
   agents,
+  viewerRole = "admin",
+  lockedAgentId,
 }: AdminPropertyEditorProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -575,6 +617,18 @@ export function AdminPropertyEditor({
       resolvePropertyAgent(property?.agent ?? { id: formState.agentId }),
     [agents, formState.agentId, property?.agent],
   );
+  const selectedAgents = useMemo(
+    () =>
+      uniqueAgentIds([formState.agentId, ...formState.agentIds])
+        .map(
+          (agentId) =>
+            getAgentByIdFromList(agents, agentId) ??
+            property?.agents?.find((agent) => agent.id === agentId) ??
+            resolvePropertyAgent({ id: agentId }),
+        )
+        .filter((agent) => agent.id),
+    [agents, formState.agentId, formState.agentIds, property?.agents],
+  );
   const imageItems = useMemo(
     () => normalizeLines(formState.imagesText),
     [formState.imagesText],
@@ -586,6 +640,7 @@ export function AdminPropertyEditor({
     [formState, initialFormState],
   );
   const canSubmit = !isPending && !isUploadingImage && (property ? isDirty : true);
+  const canChangeAgent = viewerRole === "admin";
   const primaryActionLabel = isPending
     ? "Saving..."
     : formState.visibilityStatus === PROPERTY_VISIBILITY_PUBLISHED
@@ -825,6 +880,33 @@ export function AdminPropertyEditor({
         ),
       };
     });
+  }
+
+  function removeAssignedAgent(agentId?: string) {
+    if (!agentId || !canChangeAgent) {
+      return;
+    }
+
+    const currentAgentIds = uniqueAgentIds([
+      formState.agentId,
+      ...formState.agentIds,
+    ]);
+
+    if (currentAgentIds.length <= 1) {
+      setFeedback("A listing needs at least one assigned agent.");
+      return;
+    }
+
+    const nextAgentIds = currentAgentIds.filter((currentId) => currentId !== agentId);
+    const nextPrimaryAgentId =
+      formState.agentId === agentId ? nextAgentIds[0] : formState.agentId;
+
+    setFeedback("");
+    setFormState((current) => ({
+      ...current,
+      agentId: nextPrimaryAgentId ?? current.agentId,
+      agentIds: nextAgentIds,
+    }));
   }
 
   return (
@@ -1482,21 +1564,30 @@ export function AdminPropertyEditor({
           <SectionHeading
             eyebrow="Agent"
             title="Assigned Consultant"
-            description="Choose which agent profile should appear across the listing and property detail page."
+            description={
+              canChangeAgent
+                ? "Choose which agent profile should appear across the listing and property detail page."
+                : "This listing is locked to your agent profile."
+            }
           />
 
           <div className="grid gap-4 md:grid-cols-[minmax(0,280px)_minmax(0,1fr)]">
             <div>
               <FieldLabel>Listing Agent</FieldLabel>
               <select
-                value={formState.agentId}
+                value={lockedAgentId ?? formState.agentId}
+                disabled={!canChangeAgent}
                 onChange={(event) =>
                   setFormState((current) => ({
                     ...current,
                     agentId: event.target.value,
+                    agentIds: uniqueAgentIds([
+                      event.target.value,
+                      ...current.agentIds,
+                    ]),
                   }))
                 }
-                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
+                className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {agents.length > 0 ? (
                   agents.map((agent) => (
@@ -1530,6 +1621,42 @@ export function AdminPropertyEditor({
                     <p>{selectedAgent.phone}</p>
                   </div>
                 </div>
+              </div>
+            </div>
+            <div className="md:col-span-2 rounded-[1.6rem] border border-gray-100 bg-gray-50 p-4">
+              <p className="text-[10px] font-bold tracking-[0.22em] text-gray-400 uppercase">
+                Assigned Agents
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {selectedAgents.map((agent) => (
+                  <span
+                    key={agent.id}
+                    className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white py-1.5 pr-2 pl-1.5 text-xs font-semibold text-gray-600"
+                  >
+                    <img
+                      src={agent.image}
+                      alt={agent.name}
+                      className="h-7 w-7 rounded-full object-cover object-top"
+                    />
+                    {agent.name}
+                    {agent.id === formState.agentId ? (
+                      <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[8px] font-bold tracking-[0.16em] text-accent uppercase">
+                        Primary
+                      </span>
+                    ) : null}
+                    {canChangeAgent && selectedAgents.length > 1 ? (
+                      <button
+                        type="button"
+                        onClick={() => removeAssignedAgent(agent.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                        title={`Remove ${agent.name}`}
+                        aria-label={`Remove ${agent.name}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
