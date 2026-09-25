@@ -1,14 +1,27 @@
 'use client';
 
 import Link from "next/link";
-import { useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   BarChart3,
+  Bell,
+  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
+  Clock3,
+  IdCard,
   Layers,
+  LockKeyhole,
   LogOut,
   Plus,
+  ShieldCheck,
+  SlidersHorizontal,
   UserRound,
   Users,
 } from "lucide-react";
@@ -48,12 +61,6 @@ const navigationItems = [
     icon: Layers,
   },
   {
-    href: "/admin/profile",
-    key: "profile",
-    label: "Profile",
-    icon: UserRound,
-  },
-  {
     href: "/admin/listings/new",
     key: "new",
     label: "Create",
@@ -71,6 +78,13 @@ const editorSteps = [
   "Basic Info",
   "Location & Media",
   "Review & Save",
+] as const;
+
+const accountSoonItems = [
+  { icon: Clock3, label: "Login Activity", text: "Device and session history" },
+  { icon: Bell, label: "Notifications", text: "Lead and account alerts" },
+  { icon: LockKeyhole, label: "Two-Factor Auth", text: "Extra sign-in protection" },
+  { icon: SlidersHorizontal, label: "Preferences", text: "Personal admin settings" },
 ] as const;
 
 const SIDEBAR_STORAGE_KEY = "rise-admin-sidebar-collapsed";
@@ -109,6 +123,226 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
+interface AccountMenuProps {
+  align?: "left" | "right";
+  compact?: boolean;
+  placement?: "bottom" | "top";
+  profileName: string;
+  profileLabel: string;
+  profileBadge: string;
+  viewerImage?: string;
+  viewerRole: "admin" | "agent";
+}
+
+function AccountAvatar({
+  profileName,
+  viewerImage,
+  viewerRole,
+  size = "md",
+}: {
+  profileName: string;
+  viewerImage?: string;
+  viewerRole: "admin" | "agent";
+  size?: "sm" | "md";
+}) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-black font-bold text-white",
+        size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-xs",
+      )}
+    >
+      {viewerImage ? (
+        <img
+          src={viewerImage}
+          alt={profileName}
+          className="h-full w-full object-cover object-top"
+          referrerPolicy="no-referrer"
+        />
+      ) : viewerRole === "admin" ? (
+        <UserRound className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      ) : (
+        getInitials(profileName)
+      )}
+    </span>
+  );
+}
+
+function AccountMenu({
+  align = "right",
+  compact = false,
+  placement = "bottom",
+  profileName,
+  profileLabel,
+  profileBadge,
+  viewerImage,
+  viewerRole,
+}: AccountMenuProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={menuRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setIsOpen((current) => !current)}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        className={cn(
+          "flex w-full items-center rounded-2xl border border-black/6 bg-gray-50 text-left transition-colors hover:bg-gray-100",
+          compact ? "justify-center p-2" : "gap-3 p-3",
+        )}
+        title="Account"
+      >
+        <AccountAvatar
+          profileName={profileName}
+          viewerImage={viewerImage}
+          viewerRole={viewerRole}
+          size={compact ? "sm" : "md"}
+        />
+        <span className={cn("min-w-0 flex-1", compact && "hidden")}>
+          <span className="flex items-center gap-2">
+            <span className="truncate text-sm font-bold text-black">
+              {profileName}
+            </span>
+            <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[8px] font-bold tracking-[0.16em] text-accent uppercase">
+              {profileBadge}
+            </span>
+          </span>
+          <span className="mt-0.5 block truncate text-xs text-gray-500">
+            {profileLabel}
+          </span>
+        </span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 shrink-0 text-gray-400 transition-transform",
+            compact && "hidden",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          role="menu"
+          className={cn(
+            "absolute z-[1100] w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-[1.6rem] border border-black/8 bg-white p-2 shadow-2xl",
+            align === "right" ? "right-0" : "left-0",
+            placement === "top" ? "bottom-[calc(100%+0.75rem)]" : "top-[calc(100%+0.75rem)]",
+          )}
+        >
+          <div className="border-b border-black/6 px-3 py-3">
+            <p className="truncate text-sm font-bold text-black">{profileName}</p>
+            <p className="mt-0.5 truncate text-xs text-gray-500">{profileLabel}</p>
+          </div>
+
+          <div className="py-2">
+            <Link
+              href="/admin/profile#details"
+              role="menuitem"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500">
+                <IdCard className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-black">Profile Details</span>
+                <span className="mt-0.5 block truncate text-xs font-medium text-gray-500">
+                  Name, role, email and access level
+                </span>
+              </span>
+            </Link>
+
+            <Link
+              href="/admin/profile#security"
+              role="menuitem"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 hover:text-black"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent/10 text-accent">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-black">Security</span>
+                <span className="mt-0.5 block truncate text-xs font-medium text-gray-500">
+                  Change your password safely
+                </span>
+              </span>
+            </Link>
+
+            <div className="mt-1 grid gap-1 border-t border-black/6 pt-2">
+              {accountSoonItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm text-gray-400"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-50">
+                      <Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold text-gray-500">
+                        {item.label}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs">
+                        {item.text}
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-[8px] font-bold tracking-[0.16em] text-gray-400 uppercase">
+                      Soon
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <form action={logoutAdmin} className="border-t border-black/6 pt-2">
+            <button
+              type="submit"
+              className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-red-500 transition-colors hover:bg-red-50"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50">
+                <LogOut className="h-4 w-4" />
+              </span>
+              Logout
+            </button>
+          </form>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function AdminShell({
   children,
   current,
@@ -126,14 +360,11 @@ export function AdminShell({
   const isListingsActive = current === "listings" || current === "edit";
   const isAgentsActive =
     current === "agents" || current === "agent-new" || current === "agent-edit";
-  const isProfileActive = current === "profile";
   const isEditor = current === "new" || current === "edit";
   const desktopSidebarWidth = isCollapsed ? 92 : 320;
   const visibleNavigationItems =
     viewerRole === "agent"
-      ? navigationItems.filter(
-          (item) => item.key === "listings" || item.key === "profile",
-        )
+      ? navigationItems.filter((item) => item.key === "listings")
       : navigationItems;
   const profileName = viewerName ?? (viewerRole === "agent" ? "Agent" : "Main Admin");
   const profileLabel =
@@ -209,9 +440,7 @@ export function AdminShell({
                 ? isListingsActive
                 : item.key === "agents"
                   ? isAgentsActive
-                  : item.key === "profile"
-                    ? isProfileActive
-                  : current === item.key;
+                : current === item.key;
 
             return (
               <Link
@@ -246,58 +475,16 @@ export function AdminShell({
             isCollapsed ? "px-3" : "px-5",
           )}
         >
-          <div
-            className={cn(
-              "mb-3 rounded-2xl border border-black/6 bg-gray-50 p-3 transition-all duration-300",
-              isCollapsed ? "flex justify-center" : "flex items-center gap-3",
-            )}
-          >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-xs font-bold text-white">
-              {viewerImage ? (
-                <img
-                  src={viewerImage}
-                  alt={profileName}
-                  className="h-full w-full object-cover object-top"
-                  referrerPolicy="no-referrer"
-                />
-              ) : viewerRole === "admin" ? (
-                <UserRound className="h-4 w-4" />
-              ) : (
-                getInitials(profileName)
-              )}
-            </span>
-            <div
-              className={cn(
-                "min-w-0 transition-all duration-300",
-                isCollapsed ? "hidden" : "block",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <p className="truncate text-sm font-bold text-black">{profileName}</p>
-                <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[8px] font-bold tracking-[0.16em] text-accent uppercase">
-                  {profileBadge}
-                </span>
-              </div>
-              <p className="mt-0.5 truncate text-xs text-gray-500">{profileLabel}</p>
-            </div>
-          </div>
-          <form action={logoutAdmin}>
-            <button
-              type="submit"
-              title="Logout"
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-black/10 px-4 py-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-black"
-            >
-              <LogOut className="h-4 w-4" />
-              <span
-                className={cn(
-                  "overflow-hidden whitespace-nowrap transition-all duration-300 ease-out",
-                  isCollapsed ? "max-w-0 opacity-0" : "max-w-[120px] opacity-100",
-                )}
-              >
-                Logout
-              </span>
-            </button>
-          </form>
+          <AccountMenu
+            align="left"
+            compact={isCollapsed}
+            placement="top"
+            profileName={profileName}
+            profileLabel={profileLabel}
+            profileBadge={profileBadge}
+            viewerImage={viewerImage}
+            viewerRole={viewerRole}
+          />
         </div>
       </aside>
 
@@ -310,27 +497,14 @@ export function AdminShell({
               <h2 className="font-display text-lg font-bold text-black">
                 {title}
               </h2>
-              <div className="flex items-center gap-3 rounded-full border border-black/6 bg-gray-50 py-1.5 pr-4 pl-1.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-[10px] font-bold text-white">
-                  {viewerImage ? (
-                    <img
-                      src={viewerImage}
-                      alt={profileName}
-                      className="h-full w-full object-cover object-top"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : viewerRole === "admin" ? (
-                    <UserRound className="h-3.5 w-3.5" />
-                  ) : (
-                    getInitials(profileName)
-                  )}
-                </span>
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-bold text-black">{profileName}</p>
-                  <p className="text-[9px] font-bold tracking-[0.16em] text-gray-400 uppercase">
-                    {profileBadge}
-                  </p>
-                </div>
+              <div className="w-[18rem]">
+                <AccountMenu
+                  profileName={profileName}
+                  profileLabel={profileLabel}
+                  profileBadge={profileBadge}
+                  viewerImage={viewerImage}
+                  viewerRole={viewerRole}
+                />
               </div>
             </div>
           </div>
@@ -342,27 +516,15 @@ export function AdminShell({
               <h2 className="font-display text-lg font-bold text-black">
                 {title}
               </h2>
-              <div className="flex items-center gap-2">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-[10px] font-bold text-white">
-                  {viewerImage ? (
-                    <img
-                      src={viewerImage}
-                      alt={profileName}
-                      className="h-full w-full object-cover object-top"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : viewerRole === "admin" ? (
-                    <UserRound className="h-4 w-4" />
-                  ) : (
-                    getInitials(profileName)
-                  )}
-                </span>
-                <div className="hidden min-w-0 sm:block">
-                  <p className="truncate text-xs font-bold text-black">{profileName}</p>
-                  <p className="text-[9px] font-bold tracking-[0.16em] text-gray-400 uppercase">
-                    {profileBadge}
-                  </p>
-                </div>
+              <div className="min-w-[3rem] max-w-[14rem]">
+                <AccountMenu
+                  compact
+                  profileName={profileName}
+                  profileLabel={profileLabel}
+                  profileBadge={profileBadge}
+                  viewerImage={viewerImage}
+                  viewerRole={viewerRole}
+                />
               </div>
             </div>
           </div>
@@ -399,8 +561,6 @@ export function AdminShell({
               ? isListingsActive
               : item.key === "agents"
                 ? isAgentsActive
-                : item.key === "profile"
-                  ? isProfileActive
                 : current === item.key;
 
           return (
@@ -419,17 +579,6 @@ export function AdminShell({
             </Link>
           );
         })}
-        <form action={logoutAdmin}>
-          <button
-            type="submit"
-            className="flex flex-col items-center gap-1.5 text-red-400"
-          >
-            <LogOut className="h-5 w-5" />
-            <span className="text-[8px] font-bold tracking-[0.2em] uppercase">
-              Exit
-            </span>
-          </button>
-        </form>
       </nav>
     </div>
   );
