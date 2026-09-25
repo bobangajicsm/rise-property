@@ -490,14 +490,19 @@ export function AdminShell({
 
       <div className="transition-[padding] duration-300 ease-out xl:pl-[var(--admin-sidebar-width)]">
         <header
-          className="hidden xl:fixed xl:top-0 xl:right-0 xl:left-[var(--admin-sidebar-width)] xl:z-30 xl:block xl:border-b xl:border-black/6 xl:bg-white xl:transition-[left] xl:duration-300 xl:ease-out"
+          className="hidden xl:sticky xl:top-0 xl:z-30 xl:block xl:border-b xl:border-black/6 xl:bg-white/95 xl:backdrop-blur xl:transition-colors"
         >
-          <div className="mx-auto max-w-[1480px] px-8 py-3">
+          <div className="mx-auto max-w-[1480px] px-8 py-2.5">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="font-display text-lg font-bold text-black">
-                {title}
-              </h2>
-              <div className="w-[18rem]">
+              <div className="min-w-0">
+                <p className="text-[9px] font-bold tracking-[0.22em] text-gray-400 uppercase">
+                  {viewerRole === "agent" ? "Agent Panel" : "Admin Panel"}
+                </p>
+                <h2 className="mt-1 truncate font-display text-lg font-bold text-black">
+                  {title}
+                </h2>
+              </div>
+              <div className="w-[min(18rem,34vw)] shrink-0">
                 <AccountMenu
                   profileName={profileName}
                   profileLabel={profileLabel}
@@ -510,13 +515,18 @@ export function AdminShell({
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1480px] px-4 py-4 md:px-6 lg:px-8 xl:pt-[64px] xl:pb-8">
+        <main className="mx-auto max-w-[1480px] px-4 py-4 md:px-6 lg:px-8 xl:py-5">
           <div className="xl:hidden">
-            <div className="flex items-center justify-between gap-3 border border-black/6 bg-white px-4 py-3 shadow-sm">
-              <h2 className="font-display text-lg font-bold text-black">
-                {title}
-              </h2>
-              <div className="min-w-[3rem] max-w-[14rem]">
+            <div className="sticky top-3 z-30 flex items-center justify-between gap-3 rounded-[1.35rem] border border-black/6 bg-white/95 px-4 py-3 shadow-sm backdrop-blur">
+              <div className="min-w-0">
+                <p className="text-[8px] font-bold tracking-[0.2em] text-gray-400 uppercase">
+                  {viewerRole === "agent" ? "Agent Panel" : "Admin Panel"}
+                </p>
+                <h2 className="mt-0.5 truncate font-display text-base font-bold text-black">
+                  {title}
+                </h2>
+              </div>
+              <div className="shrink-0">
                 <AccountMenu
                   compact
                   profileName={profileName}
