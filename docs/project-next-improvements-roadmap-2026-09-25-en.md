@@ -1,178 +1,232 @@
-# Rise Property - Next Improvements Roadmap
+# Rise Property - Completed Updates And Suggested Improvements
 
 Date: 2026-09-25
 
-This document captures recommended follow-up improvements after the recent admin, agent login, listing assignment, and multi-agent listing work. The priority is to keep every future change incremental and safe for the production database.
+This document summarizes the platform improvements that have already been completed and outlines suggested next steps that can further improve the user experience, admin workflow, and public property browsing.
 
-## Fixed Immediately
+## Already Completed
 
-- Removed the rough `agent.username` placeholder.
-- The agent login form now uses `Enter agent username`.
-- The agent editor username field now uses `Enter agent username`.
-- The new password field now uses `Create agent password` instead of the shorter `Set password`.
+### 1. Agent Login Access
 
-## 1. Map: Grouped Listing Markers With Counts
+Agent login access has been added to the platform.
 
-### Problem
+Each agent can now have their own username and password created from the main admin area. Agents can log in separately from the main admin and access only the listings assigned to them.
 
-When multiple listings share the same or very close coordinates, map markers can overlap. Users may not clearly see that there are 2, 3, or more listings in the same place.
+Completed items:
 
-### Recommendation
+- Agent username and password support.
+- Separate Agent Login flow.
+- Main Admin Login remains separate.
+- Agents can access only their assigned listings.
+- Agents cannot access full admin-only areas.
+- Agents cannot delete listings.
+- Agent sessions and admin sessions are separated.
 
-Show one marker with a number, such as `2`, when multiple listings share the same or nearby position. Clicking that numbered marker should open a popup with the list of listings.
+### 2. Multi-Agent Listing Assignment
 
-### Expected Behavior
+Listings now support multiple assigned agents instead of being limited to one agent only.
 
-- Group listings by coordinates or by a small distance threshold.
-- If a group has 1 listing, show the standard price marker.
-- If a group has 2 or more listings, show a count marker.
-- Clicking the count marker opens a popup.
-- The popup should show a compact list with:
-  - image
-  - title
-  - price
-  - location or area
-  - `View Details` button or link
+This allows the business to assign several consultants to the same property when needed.
 
-### Relevant Files
+Completed items:
 
-- `components/maps/property-listing-map.tsx`
-- `components/maps/area-properties-map.tsx`
-- `components/maps/leaflet-markers.ts`
+- Multiple agents can be assigned to one listing.
+- Agents can be added from the admin listing view.
+- Agents can be removed from a listing inside the listing editor.
+- A listing cannot be left without at least one assigned agent.
+- Assigned agents are shown with compact avatar circles.
+- Agent access works with multi-agent listings.
 
-### Notes
+### 3. Admin Listing Page Improvements
 
-The project already has `react-leaflet-cluster`, so it can be used for proper clustering behavior. If the desired behavior is only for identical or near-identical coordinates, a custom grouping implementation can also work without adding a new library.
+The admin listing page has been improved to make daily management easier and cleaner.
 
-## 2. Homepage Property Swiper
+Completed items:
 
-### Problem
+- Cleaner listing table layout.
+- Better mobile and desktop presentation.
+- Listing image preview.
+- Title, location, public link, price, and assigned agents are easier to scan.
+- Optional table columns were added so the admin can choose what extra information to display.
+- Assigned agent avatars are visible directly in the listing table.
 
-The homepage currently has a recommended properties grid on desktop and horizontal scrolling on mobile. It works, but it could feel more polished with clear left/right controls.
+### 4. Agent Management Improvements
 
-### Recommendation
+Agent management has been expanded in the admin panel.
 
-Add a swiper or slider for recommended properties on the homepage:
+Completed items:
 
-- left and right arrows
-- progress indicator or dots
-- drag and swipe support
-- polished mobile and desktop layout
-- minimal text
+- Create, edit, and manage agent profiles.
+- Upload agent avatar.
+- Resize and reposition agent avatar image.
+- Enable or disable login access for an agent.
+- Set or update an agent password.
+- Transfer assigned listings when removing an agent.
+- Cleaner confirmation dialogs for important actions.
 
-### Relevant Files
+### 5. Login Screen Improvement
 
-- `components/home/recommended-properties.tsx`
-- optional new component: `components/home/property-swiper.tsx`
+The login screen has been redesigned so admin and agent access are clearly separated.
 
-### Notes
+Completed items:
 
-This can be done without a new dependency by building a native scroll carousel with buttons. If a full slider system is preferred, add the `swiper` package.
+- Admin / Agent login tabs.
+- Cleaner login layout.
+- Better labels and placeholders.
+- Improved visual separation between admin and agent access.
+- Clearer error handling.
 
-## 3. Admin And Agent Profile Polish
+### 6. Logged-In User Visibility
 
-### Recommended Additions
+The admin interface now clearly shows who is logged in.
 
-- Add a dedicated `/admin/profile` page.
-- For the main admin, show email and role.
-- For an agent, show avatar, name, role, username, and assigned listing count.
-- Add optional `last_login_at` for agents.
-- Add optional `password_updated_at` for agents.
+Completed items:
 
-### Database Rule
+- Shows whether the user is Admin or Agent.
+- Shows agent name and avatar when logged in as an agent.
+- Displays user identity in the admin sidebar/header.
+- Makes access level clearer while using the admin area.
 
-All new database fields should be optional and added through `ADD COLUMN IF NOT EXISTS`.
+## Suggested Next Improvements
 
-## 4. Admin Listing UX
+### 1. Grouped Listing Markers On The Map
 
-### Recommended Additions
+When multiple listings are located at the same or very close position, the map should show one grouped marker with a number.
 
-- Remove an agent directly from the listing table avatar stack.
-- Add undo feedback after adding or removing an agent.
-- Add listing filters by agent.
-- Save the admin's selected visible table columns.
-- Add bulk assign/remove for multiple agents from the listing table.
+For example, if two properties are in the same building or location, the map can show a marker with `2`. When the visitor clicks it, a popup opens with the list of those listings.
 
-### Relevant Files
+Suggested items:
 
-- `components/admin/admin-listings-table.tsx`
-- `components/admin/admin-property-editor.tsx`
-- `lib/properties-store.ts`
-- `app/actions.ts`
+- Group listings that share the same or nearby location.
+- Show a numbered marker for grouped listings.
+- Open a popup list when the marker is clicked.
+- Show image, title, price, and action for each listing inside the popup.
+- Reduce map clutter and improve browsing clarity.
 
-## 5. Data Quality
+### 2. Homepage Property Swiper
 
-### Items To Validate
+The homepage recommended properties section can be improved with a polished property swiper.
 
-- Listings without valid coordinates.
-- Listings without images.
-- Listings with duplicate slugs or weak titles.
-- Listings with suspiciously high or low prices caused by entry mistakes.
-- Listings where the primary agent is inactive.
+This would make the homepage feel more interactive and premium, especially on mobile.
 
-### Recommendation
+Suggested items:
 
-Add an admin health panel with checks such as:
+- Add left and right navigation arrows.
+- Add mobile swipe support.
+- Add smooth property browsing.
+- Improve recommended property presentation.
+- Make better use of homepage space.
 
-- `Missing Images`
-- `Missing Coordinates`
-- `Inactive Agent Assigned`
-- `Drafts Older Than 30 Days`
+### 3. Agent Filter In Admin Listings
 
-## 6. Performance And Cleanup
+The admin listing page can be improved further with a filter by assigned agent.
 
-### Observed Cleanup Candidates
+This would make it easier for the main admin to quickly review listings by consultant.
 
-There are old or duplicate-looking files that should be reviewed:
+Suggested items:
 
-- `components/admin/admin-dashboard 2.tsx`
-- `lib/storage 2.ts`
-- `app/privacy-policy/page 2.tsx`
-- `app/terms-and-conditions/page 2.tsx`
+- Filter listings by agent.
+- Show listings assigned to one specific agent.
+- Combine agent filter with existing search and status filters.
+- Improve management for larger listing inventories.
 
-### Recommendation
+### 4. Saved Admin Table Preferences
 
-Check whether these files are still used. If they are not used, remove them in a separate cleanup step.
+The admin can currently choose optional columns, but those choices could be saved.
 
-### Images
+Suggested items:
 
-ESLint still warns about multiple `<img>` elements. This is not a breaking issue, but public-facing image-heavy areas should gradually move to `next/image` for better performance:
+- Save selected table columns.
+- Keep admin preferences after page reload.
+- Improve daily workflow consistency.
 
-- listing cards
-- login hero
-- admin agent avatars
-- property detail galleries
+### 5. Listing Quality Checks
 
-## 7. Tests To Add
+The admin could benefit from a simple quality control area that highlights listings needing attention.
 
-### Admin
+Suggested items:
 
-- Admin login works.
-- Admin can add an agent to a listing.
-- Admin can remove an agent from a listing.
-- A listing cannot be left without any agent.
-- Agent transfer works when deleting an agent.
+- Identify listings without images.
+- Identify listings without valid map location.
+- Identify listings assigned to inactive agents.
+- Identify older drafts.
+- Highlight incomplete listing content.
+- Help the admin fix listings before publishing.
 
-### Agent
+### 6. Dedicated Profile Page
 
-- Agent login works.
-- Agent sees only assigned listings.
-- Agent cannot open another agent's listing.
-- Agent does not see admin-only navigation.
-- Agent cannot delete listings.
+A dedicated profile page could be added for the logged-in user.
 
-### Public
+Suggested items:
 
-- Search/listing map shows grouped markers.
-- Clicking a grouped marker opens a popup list.
-- Homepage swiper works on mobile and desktop.
+- Admin profile overview.
+- Agent profile overview.
+- Assigned listing count for agents.
+- Basic account and access information.
+- Cleaner place for profile-related settings.
 
-## Priority
+### 7. Public Listing Map Popup Polish
 
-1. Map grouped marker with count and popup list.
+The map popup experience can be made more premium.
+
+Suggested items:
+
+- Cleaner popup cards.
+- Better image presentation.
+- More compact listing details.
+- Improved mobile popup behavior.
+- Easier click-through to property details.
+
+### 8. Homepage And Listing Visual Polish
+
+Some visual refinements can make the public website feel more premium and consistent.
+
+Suggested items:
+
+- More consistent buttons and cards.
+- Smoother mobile spacing.
+- Better image loading behavior.
+- Cleaner property card hover states.
+- More polished property gallery browsing.
+
+### 9. Performance Improvements
+
+The website can be optimized further for image-heavy pages.
+
+Suggested items:
+
+- Improve image optimization.
+- Reduce unnecessary layout shifts.
+- Optimize listing and property detail media.
+- Improve perceived loading speed.
+
+### 10. Smoke Testing For Important Flows
+
+Basic automated checks can help protect the most important platform flows.
+
+Suggested items:
+
+- Admin login check.
+- Agent login check.
+- Agent restricted listing access check.
+- Listing create/edit check.
+- Agent assignment check.
+- Public property page check.
+
+## Recommended Priority
+
+1. Grouped map markers with popup listing list.
 2. Homepage property swiper.
-3. Listing table filter by agent.
-4. Admin/profile page.
-5. Duplicate file cleanup.
-6. `next/image` performance pass.
-7. Playwright smoke tests.
+3. Agent filter in admin listings.
+4. Saved table column preferences.
+5. Listing quality checks.
+6. Dedicated profile page.
+7. Public map popup polish.
+8. Visual and performance polish.
+9. Smoke testing for key flows.
+
+## Summary
+
+The core admin and agent-access improvements have already been completed. The platform now supports agent login, restricted agent listing access, multi-agent listing assignments, improved login design, cleaner listing management, and better visibility of the logged-in user.
+
+The next recommended improvements should focus on the public browsing experience, map usability, homepage presentation, admin filtering, and quality control tools.

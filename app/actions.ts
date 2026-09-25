@@ -13,6 +13,7 @@ import {
 } from "@/lib/admin-access";
 import {
   clearAdminSession,
+  changeAdminPassword,
   createAdminSession,
   isAdminAuthenticated,
   validateAdminCredentials,
@@ -20,6 +21,7 @@ import {
 import {
   assignAllMatchingPropertiesToAgent,
   assignPropertiesToAgent,
+  changeAgentOwnPassword,
   deleteAgentById,
   transferPropertiesBetweenAgents,
   upsertAgent,
@@ -161,7 +163,7 @@ export async function loginAdmin(formData: FormData) {
   const email = String(formData.get("email") ?? "");
   const password = String(formData.get("password") ?? "");
 
-  if (!validateAdminCredentials(email, password)) {
+  if (!(await validateAdminCredentials(email, password))) {
     redirect("/admin/login?error=invalid");
   }
 
@@ -188,6 +190,33 @@ export async function logoutAdmin() {
   await clearAdminSession();
   await clearAgentSession();
   redirect("/admin/login");
+}
+
+export async function changeOwnPasswordAction(input: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const access = await assertAnyAdminAccess();
+  const currentPassword = String(input.currentPassword ?? "");
+  const newPassword = String(input.newPassword ?? "");
+
+  if (!currentPassword || !newPassword) {
+    throw new Error("Current password and new password are required.");
+  }
+
+  if (currentPassword === newPassword) {
+    throw new Error("New password must be different from the current password.");
+  }
+
+  if (access.role === "admin") {
+    await changeAdminPassword(currentPassword, newPassword);
+  } else {
+    await changeAgentOwnPassword(access.agent.id, currentPassword, newPassword);
+  }
+
+  revalidatePath("/admin/profile");
+
+  return { role: access.role };
 }
 
 export async function savePropertyAction(input: PropertyMutationInput) {

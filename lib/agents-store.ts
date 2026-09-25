@@ -1004,6 +1004,63 @@ export async function validateAgentCredentials(
   return mapAgentRowToAgent(row, countMap.get(row.id) ?? 0);
 }
 
+export async function changeAgentOwnPassword(
+  agentId: string,
+  currentPassword: string,
+  newPassword: string,
+) {
+  const sql = getSql();
+
+  if (!sql) {
+    throw new Error("Database is required to update the agent password.");
+  }
+
+  if (!newPassword || newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  await ensureAgentsSchema();
+
+  const [row] = asRows<{
+    password_hash: string | null;
+    password_salt: string | null;
+    can_login: boolean | string | null;
+    is_active: boolean | string | null;
+  }>(await sql`
+    SELECT password_hash, password_salt, can_login, is_active
+    FROM agents
+    WHERE id = ${agentId}
+    LIMIT 1
+  `);
+
+  if (!row || !normalizeBoolean(row.is_active, true) || !normalizeBoolean(row.can_login, false)) {
+    throw new Error("Agent login access is not enabled.");
+  }
+
+  if (!verifyPasswordHash(currentPassword, row.password_salt, row.password_hash)) {
+    throw new Error("Current password is incorrect.");
+  }
+
+  const nextCredentials = createPasswordHash(newPassword);
+
+  await sql`
+    UPDATE agents
+    SET
+      password_hash = ${nextCredentials.hash},
+      password_salt = ${nextCredentials.salt},
+      updated_at = NOW()
+    WHERE id = ${agentId}
+  `;
+
+  const agent = await getAgentById(agentId, { includeInactive: true });
+
+  if (!agent) {
+    throw new Error("Agent not found.");
+  }
+
+  return agent;
+}
+
 async function getAssignedPropertyCount(agentId: string) {
   const countMap = await getAgentListingCountMap();
   return countMap.get(agentId) ?? 0;

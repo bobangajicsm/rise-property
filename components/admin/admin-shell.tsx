@@ -17,7 +17,15 @@ import { cn } from "@/lib/utils";
 
 interface AdminShellProps {
   children: ReactNode;
-  current: "overview" | "listings" | "new" | "edit" | "agents" | "agent-new" | "agent-edit";
+  current:
+    | "overview"
+    | "listings"
+    | "new"
+    | "edit"
+    | "agents"
+    | "agent-new"
+    | "agent-edit"
+    | "profile";
   title: string;
   description: string;
   viewerRole?: "admin" | "agent";
@@ -38,6 +46,12 @@ const navigationItems = [
     key: "listings",
     label: "Listings",
     icon: Layers,
+  },
+  {
+    href: "/admin/profile",
+    key: "profile",
+    label: "Profile",
+    icon: UserRound,
   },
   {
     href: "/admin/listings/new",
@@ -112,11 +126,14 @@ export function AdminShell({
   const isListingsActive = current === "listings" || current === "edit";
   const isAgentsActive =
     current === "agents" || current === "agent-new" || current === "agent-edit";
+  const isProfileActive = current === "profile";
   const isEditor = current === "new" || current === "edit";
   const desktopSidebarWidth = isCollapsed ? 92 : 320;
   const visibleNavigationItems =
     viewerRole === "agent"
-      ? navigationItems.filter((item) => item.key === "listings")
+      ? navigationItems.filter(
+          (item) => item.key === "listings" || item.key === "profile",
+        )
       : navigationItems;
   const profileName = viewerName ?? (viewerRole === "agent" ? "Agent" : "Main Admin");
   const profileLabel =
@@ -192,6 +209,8 @@ export function AdminShell({
                 ? isListingsActive
                 : item.key === "agents"
                   ? isAgentsActive
+                  : item.key === "profile"
+                    ? isProfileActive
                   : current === item.key;
 
             return (
@@ -380,6 +399,8 @@ export function AdminShell({
               ? isListingsActive
               : item.key === "agents"
                 ? isAgentsActive
+                : item.key === "profile"
+                  ? isProfileActive
                 : current === item.key;
 
           return (
