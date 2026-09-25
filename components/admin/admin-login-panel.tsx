@@ -146,7 +146,7 @@ export function AdminLoginPanel({
                   name="username"
                   type="text"
                   autoComplete="username"
-                  placeholder="agent.username"
+                  placeholder="Enter agent username"
                   className="w-full rounded-2xl border border-white/10 bg-white/[0.06] py-4 pr-4 pl-12 text-sm text-white outline-none transition-all placeholder:text-white/20 focus:border-accent/60 focus:bg-white/[0.09]"
                 />
               </div>

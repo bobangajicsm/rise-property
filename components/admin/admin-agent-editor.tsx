@@ -935,7 +935,7 @@ export function AdminAgentEditor({
                         loginUsername: event.target.value,
                       }))
                     }
-                    placeholder="agent.username"
+                    placeholder="Enter agent username"
                     autoComplete="off"
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
                   />
@@ -954,7 +954,7 @@ export function AdminAgentEditor({
                         loginPassword: event.target.value,
                       }))
                     }
-                    placeholder={agent?.hasPassword ? "Leave blank to keep current" : "Set password"}
+                    placeholder={agent?.hasPassword ? "Leave blank to keep current" : "Create agent password"}
                     autoComplete="new-password"
                     className="w-full rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent"
                   />
