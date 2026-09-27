@@ -646,19 +646,20 @@ export function PropertyDetailPage({
                     </div>
                   </div>
 
-                  <div className="relative aspect-square overflow-hidden rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="absolute top-4 left-4 z-[1000] rounded-lg border border-gray-100 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-md">
-                      <span className="text-[9px] font-bold tracking-widest text-gray-600 uppercase">
-                        Interactive Map
-                      </span>
-                    </div>
-                    <PropertyPreviewMap
-                      property={property}
-                      nearbyProperties={relatedProperties}
-                    />
-                  </div>
                 </div>
               </div>
+            </div>
+
+            <div className="relative mt-12 h-[320px] overflow-hidden rounded-2xl border border-gray-100 shadow-sm md:h-[420px] lg:h-[460px]">
+              <div className="absolute top-4 left-4 z-[1000] rounded-lg border border-gray-100 bg-white/90 px-3 py-1.5 shadow-sm backdrop-blur-md">
+                <span className="text-[9px] font-bold tracking-widest text-gray-600 uppercase">
+                  Interactive Map
+                </span>
+              </div>
+              <PropertyPreviewMap
+                property={property}
+                nearbyProperties={relatedProperties}
+              />
             </div>
           </div>
 

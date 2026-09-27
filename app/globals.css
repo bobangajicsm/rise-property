@@ -183,6 +183,15 @@ h6 {
 
 .leaflet-container {
   font-family: inherit !important;
+  background: #d8ebe5 !important;
+}
+
+.rise-map-tiles {
+  filter: saturate(1.45) contrast(1.08) brightness(0.98);
+}
+
+.leaflet-control-attribution {
+  display: none !important;
 }
 
 @keyframes slow-zoom {

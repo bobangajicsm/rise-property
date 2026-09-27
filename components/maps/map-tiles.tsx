@@ -2,17 +2,23 @@
 
 import { TileLayer } from "react-leaflet";
 
-const COLOR_TILE_URL =
-  "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+const DEFAULT_TILE_URL =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
 
-const COLOR_TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const DEFAULT_TILE_ATTRIBUTION = "";
+
+const TILE_URL =
+  process.env.NEXT_PUBLIC_MAP_TILE_URL?.trim() || DEFAULT_TILE_URL;
+
+const TILE_ATTRIBUTION =
+  process.env.NEXT_PUBLIC_MAP_TILE_ATTRIBUTION?.trim() || DEFAULT_TILE_ATTRIBUTION;
 
 export function ColorTileLayer() {
   return (
     <TileLayer
-      attribution={COLOR_TILE_ATTRIBUTION}
-      url={COLOR_TILE_URL}
+      className="rise-map-tiles"
+      attribution={TILE_ATTRIBUTION}
+      url={TILE_URL}
       updateWhenIdle
       keepBuffer={4}
     />

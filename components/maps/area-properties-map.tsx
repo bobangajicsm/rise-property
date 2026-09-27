@@ -64,6 +64,7 @@ export function AreaPropertiesMap({
         zoom={14}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom
+        attributionControl={false}
       >
         <ColorTileLayer />
 

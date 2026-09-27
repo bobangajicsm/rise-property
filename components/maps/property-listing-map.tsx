@@ -296,6 +296,7 @@ export function PropertyListingMap({
         zoom={getDefaultQatarZoom(isMobile)}
         style={{ height: "100%", width: "100%" }}
         scrollWheelZoom
+        attributionControl={false}
         zoomControl={false}
         preferCanvas
         fadeAnimation={!isMobile}

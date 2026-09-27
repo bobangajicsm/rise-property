@@ -79,6 +79,7 @@ export function AdminLocationPickerMap({
         center={center}
         zoom={13}
         style={{ height: "100%", width: "100%" }}
+        attributionControl={false}
       >
         <ColorTileLayer />
         <Marker position={center} icon={createPinMarker()} />

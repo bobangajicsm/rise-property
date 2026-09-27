@@ -583,12 +583,9 @@ export function PropertyListingPage({
     const scrollContainer = listScrollRef.current;
 
     const updateScrollTopVisibility = () => {
-      if (isMobileViewport()) {
-        setShowScrollTop(window.scrollY > 320);
-        return;
-      }
-
-      setShowScrollTop((scrollContainer?.scrollTop ?? 0) > 320);
+      setShowScrollTop(
+        window.scrollY > 320 || (scrollContainer?.scrollTop ?? 0) > 320,
+      );
     };
 
     updateScrollTopVisibility();
@@ -1432,14 +1429,14 @@ export function PropertyListingPage({
         ) : null}
       </header>
 
-      <div className="relative flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden">
+      <div className="relative flex flex-col lg:min-h-0 lg:flex-1 lg:overflow-visible">
         <div
           ref={listScrollRef}
           className={cn(
             "scroll-smooth bg-gray-50/30 transition-all duration-500",
             viewMode === "grid" ? "px-3 pt-2 pb-3 md:px-4 md:pt-3 md:pb-4" : "px-4 pt-3 pb-4 md:px-6 md:pt-4 md:pb-6",
             showMapMobile ? "hidden lg:block" : "block",
-            "w-full overflow-visible lg:w-[50%] lg:overflow-y-auto xl:w-[55%]",
+            "w-full overflow-visible",
           )}
         >
           <div
@@ -1829,14 +1826,14 @@ export function PropertyListingPage({
 
         <div
           className={cn(
-            "relative z-0 w-full bg-white transition-all duration-700 ease-in-out lg:w-[50%] xl:w-[45%]",
+            "relative z-0 w-full overflow-hidden bg-white transition-all duration-700 ease-in-out",
             showMapMobile
-              ? "fixed inset-x-0 bottom-0 z-[90] opacity-100 lg:relative lg:inset-auto lg:z-0"
+              ? "fixed inset-x-0 bottom-0 z-[90] opacity-100 lg:static lg:order-first lg:z-0 lg:mx-auto lg:mt-4 lg:h-[min(52vh,520px)] lg:max-w-[1480px] lg:rounded-[1.4rem] lg:border lg:border-gray-100 lg:shadow-sm"
               : mobileMapPrimed
-                ? "pointer-events-none fixed inset-x-0 bottom-0 -z-10 translate-y-8 opacity-0 lg:pointer-events-auto lg:relative lg:inset-auto lg:z-0 lg:translate-y-0 lg:opacity-100"
-                : "hidden lg:block",
+                ? "pointer-events-none fixed inset-x-0 bottom-0 -z-10 translate-y-8 opacity-0 lg:pointer-events-auto lg:static lg:order-first lg:z-0 lg:mx-auto lg:mt-4 lg:h-[min(52vh,520px)] lg:max-w-[1480px] lg:translate-y-0 lg:rounded-[1.4rem] lg:border lg:border-gray-100 lg:opacity-100 lg:shadow-sm"
+                : "hidden lg:order-first lg:mx-auto lg:mt-4 lg:block lg:h-[min(52vh,520px)] lg:max-w-[1480px] lg:rounded-[1.4rem] lg:border lg:border-gray-100 lg:shadow-sm",
           )}
-          style={showMapMobile || mobileMapPrimed ? { top: mobileMapOffset } : undefined}
+          style={showMapMobile || (mobileMapPrimed && isMobileViewport()) ? { top: mobileMapOffset } : undefined}
         >
           <PropertyListingMap
             properties={displayProperties}
