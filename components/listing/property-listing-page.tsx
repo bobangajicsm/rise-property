@@ -12,6 +12,8 @@ import {
   List,
   Map as MapIcon,
   MapPin,
+  Maximize2,
+  Minimize2,
   Search,
   SlidersHorizontal,
 } from "lucide-react";
@@ -451,6 +453,7 @@ export function PropertyListingPage({
   const initialAppliedLocation = initialQuery ?? initialArea ?? "";
   const [activeId, setActiveId] = useState<number | null>(null);
   const [showMapMobile, setShowMapMobile] = useState(false);
+  const [showMapFullscreen, setShowMapFullscreen] = useState(false);
   const [mobileMapPrimed, setMobileMapPrimed] = useState(false);
   const [mapFocusMode, setMapFocusMode] = useState<"active" | "bounds">("bounds");
   const [mobileMapOffset, setMobileMapOffset] = useState(0);
@@ -481,6 +484,19 @@ export function PropertyListingPage({
   useEffect(() => {
     void import("@/components/maps/property-listing-map");
   }, []);
+
+  useEffect(() => {
+    if (!showMapFullscreen) {
+      return;
+    }
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showMapFullscreen]);
 
   useEffect(() => {
     if (!isMobileViewport()) {
@@ -932,6 +948,11 @@ export function PropertyListingPage({
     setShowMapMobile(true);
   }
 
+  function toggleFullscreenMap() {
+    setMapFocusMode(activeId ? "active" : "bounds");
+    setShowMapFullscreen((current) => !current);
+  }
+
   function activatePropertyFromCard(id: number) {
     if (isMobileViewport()) {
       activateProperty(id, { scrollList: false });
@@ -943,6 +964,11 @@ export function PropertyListingPage({
   }
 
   function activatePropertyFromMap(id: number) {
+    if (showMapFullscreen) {
+      activateProperty(id, { scrollList: false });
+      return;
+    }
+
     if (isMobileViewport()) {
       activateProperty(id, { scrollList: false });
       openMobileMap("active");
@@ -1606,7 +1632,7 @@ export function PropertyListingPage({
 
             <div
               className={cn(
-                "grid gap-4 md:gap-6",
+                "grid gap-3 md:gap-4",
                 viewMode === "grid"
                   ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
                   : "grid-cols-1",
@@ -1651,11 +1677,11 @@ export function PropertyListingPage({
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className={cn(
-                    "group flex h-full cursor-pointer flex-col overflow-hidden rounded-3xl border bg-white transition-all duration-500",
+                    "group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border bg-white transition-all duration-300",
                     viewMode === "list" ? "sm:flex-row" : "flex-col",
                     activeId === property.id
                       ? "border-accent shadow-2xl shadow-accent/10 ring-1 ring-accent/20"
-                      : "border-gray-100 hover:border-gray-200 hover:shadow-xl hover:shadow-gray-200/50",
+                      : "border-gray-100 hover:border-gray-200 hover:shadow-lg hover:shadow-gray-200/40",
                   )}
                   onClick={() => activatePropertyFromCard(property.id)}
                 >
@@ -1663,159 +1689,123 @@ export function PropertyListingPage({
                     className={cn(
                       "relative shrink-0 overflow-hidden",
                       viewMode === "list"
-                        ? "aspect-[4/3] w-full sm:w-[40%] sm:aspect-auto"
-                        : "aspect-[4/3] w-full",
+                        ? "aspect-[16/10] w-full sm:w-[34%] sm:aspect-auto"
+                        : "aspect-[16/10] w-full",
                     )}
                   >
                     <img
                       src={property.images[0]}
                       alt={property.title}
-                      className="h-full w-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                       referrerPolicy="no-referrer"
                     />
-                    <div className="absolute top-4 left-4 flex flex-col gap-2">
-                      <div className="rounded-full bg-white/90 px-3 py-1 text-[8px] font-bold tracking-widest text-black uppercase shadow-sm backdrop-blur-md">
+                    <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+                      <div className="rounded-full bg-white/90 px-2 py-0.5 text-[7px] font-bold tracking-widest text-black uppercase shadow-sm backdrop-blur-md">
                         {property.type}
                       </div>
-                      <div className="rounded-full bg-black/75 px-3 py-1 text-[8px] font-bold tracking-widest text-white uppercase shadow-sm backdrop-blur-md">
+                      <div className="rounded-full bg-black/75 px-2 py-0.5 text-[7px] font-bold tracking-widest text-white uppercase shadow-sm backdrop-blur-md">
                         ID {formatPropertyReference(property.id)}
                       </div>
                       {property.badges.includes("LUXURY") ? (
-                        <div className="rounded-full bg-black px-3 py-1 text-[8px] font-bold tracking-widest text-white uppercase shadow-sm">
+                        <div className="rounded-full bg-black px-2 py-0.5 text-[7px] font-bold tracking-widest text-white uppercase shadow-sm">
                           Luxury
                         </div>
                       ) : null}
                     </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleViewProperty(property.slug);
+                      }}
+                      className={cn(
+                        "absolute top-3 right-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-[8px] font-bold tracking-widest text-black uppercase shadow-sm backdrop-blur-md transition-all hover:bg-black hover:text-white",
+                        viewMode === "grid" &&
+                          "sm:translate-y-1 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100",
+                      )}
+                    >
+                      View
+                      <ArrowRight className="h-2.5 w-2.5" />
+                    </button>
+                    <div className="absolute bottom-3 left-3 rounded-xl bg-white/95 px-3 py-2 text-black shadow-lg backdrop-blur-md">
+                      <div className="font-display text-sm font-bold leading-none">
+                        QAR {formatPrice(property.price)}
+                      </div>
+                      <div className="mt-1 text-[7px] font-bold tracking-widest text-gray-400 uppercase">
+                        {property.listingType === LISTING_TYPES[1] ? "Monthly" : "Sale Price"}
+                      </div>
+                    </div>
+                    {viewMode === "grid" ? (
+                      <div className="absolute right-3 bottom-3 grid grid-cols-3 gap-1.5 rounded-xl bg-black/75 p-2 text-white shadow-lg backdrop-blur-md transition-all duration-300 sm:translate-y-2 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100">
+                        <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase">
+                          <Bed className="h-3 w-3 text-accent" />
+                          {property.beds}
+                        </div>
+                        <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase">
+                          <Bath className="h-3 w-3 text-accent" />
+                          {property.baths}
+                        </div>
+                        <div className="flex items-center justify-center gap-1 text-[9px] font-bold uppercase">
+                          <MapIcon className="h-3 w-3 text-accent" />
+                          {extractSqftValue(property.sqft)}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div
                     className={cn(
                       "flex flex-1 flex-col justify-between",
-                      viewMode === "list" ? "p-6 md:p-8" : "p-5 md:p-5",
+                      viewMode === "list" ? "p-4 md:p-5" : "p-3.5",
                     )}
                   >
                     <div>
                       <div
                         className={cn(
-                          "mb-3 flex items-start justify-between",
-                          viewMode === "grid" ? "flex-col gap-2" : "flex-row",
+                          "flex items-start justify-between",
+                          viewMode === "grid" ? "flex-col gap-1.5" : "flex-row",
                         )}
                       >
-                        <div>
+                        <div className="min-w-0">
                           <h3
                             className={cn(
                               "mb-1 font-bold leading-snug text-black transition-colors group-hover:text-accent",
+                              activeId === property.id
+                                ? "line-clamp-none"
+                                : "line-clamp-2",
                               viewMode === "list"
                                 ? "text-lg"
-                                : "min-h-[3.5rem] text-[1.05rem] line-clamp-2",
+                                : activeId === property.id
+                                  ? "text-[0.98rem]"
+                                  : "min-h-[2.65rem] text-[0.98rem]",
                             )}
                           >
                             {property.title}
                           </h3>
-                          <p className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                          <p className="flex items-center gap-1.5 text-[9px] text-gray-400">
                             <MapPin className="h-3 w-3 text-accent" />
                             <span className={cn(viewMode === "grid" ? "line-clamp-1" : "")}>
                               {property.location}
                             </span>
                           </p>
                         </div>
-                        <div
-                          className={cn(
-                            viewMode === "grid"
-                              ? "mt-0.5 rounded-2xl bg-gray-50 px-3 py-2 text-left"
-                              : "text-right",
-                          )}
-                        >
-                          <div
-                            className={cn(
-                              "font-display font-bold text-black",
-                              viewMode === "list" ? "text-xl" : "text-[1.15rem]",
-                            )}
-                          >
-                            QAR {formatPrice(property.price)}
+                      </div>
+                      {viewMode === "list" ? (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-3 text-[10px] font-bold text-gray-700 uppercase">
+                          <div className="flex items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-1.5">
+                            <Bed className="h-3.5 w-3.5 text-accent" />
+                            {property.beds}
                           </div>
-                          <div className="mt-0.5 text-[8px] font-bold tracking-widest text-gray-400 uppercase">
-                            {property.listingType === LISTING_TYPES[1] ? "/ Month" : "Total Price"}
+                          <div className="flex items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-1.5">
+                            <Bath className="h-3.5 w-3.5 text-accent" />
+                            {property.baths}
+                          </div>
+                          <div className="flex items-center gap-1.5 rounded-full bg-gray-50 px-2.5 py-1.5">
+                            <MapIcon className="h-3.5 w-3.5 text-accent" />
+                            {extractSqftValue(property.sqft)}
                           </div>
                         </div>
-                      </div>
-
-                      <div
-                        className={cn(
-                          "mb-4 border-y border-gray-100 py-3",
-                          viewMode === "list"
-                            ? "flex items-center gap-6"
-                            : "grid grid-cols-3 gap-2",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "flex items-center gap-1.5",
-                            viewMode === "grid" ? "rounded-2xl bg-gray-50 px-2.5 py-2" : "",
-                          )}
-                        >
-                          <Bed className="h-3.5 w-3.5 text-accent" />
-                          <span className="text-[10px] font-bold leading-none">
-                            {property.beds}{" "}
-                            <span className="font-normal text-gray-400">Beds</span>
-                          </span>
-                        </div>
-                        <div
-                          className={cn(
-                            "flex items-center gap-1.5",
-                            viewMode === "grid" ? "rounded-2xl bg-gray-50 px-2.5 py-2" : "",
-                          )}
-                        >
-                          <Bath className="h-3.5 w-3.5 text-accent" />
-                          <span className="text-[10px] font-bold leading-none">
-                            {property.baths}{" "}
-                            <span className="font-normal text-gray-400">Baths</span>
-                          </span>
-                        </div>
-                        <div
-                          className={cn(
-                            "flex items-center gap-1.5",
-                            viewMode === "grid" ? "rounded-2xl bg-gray-50 px-2.5 py-2" : "",
-                          )}
-                        >
-                          <MapIcon className="h-3.5 w-3.5 text-accent" />
-                          <span className="text-[10px] font-bold leading-none">
-                            {extractSqftValue(property.sqft)}{" "}
-                            <span className="font-normal text-gray-400">sqft</span>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-end gap-1.5 border-t border-gray-100 pt-3">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            activateProperty(property.id, { scrollList: false });
-                            openMobileMap("active");
-                          }}
-                          className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1.5 text-[8px] font-bold tracking-widest uppercase transition-colors hover:bg-gray-200 lg:hidden"
-                        >
-                          <MapIcon className="h-2.5 w-2.5" />
-                          Map
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            handleViewProperty(property.slug);
-                          }}
-                          className={cn(
-                            "group/btn inline-flex shrink-0 items-center gap-1.5 rounded-full bg-black text-[8px] font-bold tracking-widest text-white uppercase transition-all hover:bg-accent",
-                            viewMode === "list" ? "px-5 py-2" : "px-4 py-2",
-                          )}
-                        >
-                          View
-                          <ArrowRight className="h-2.5 w-2.5 transition-transform group-hover/btn:translate-x-1" />
-                        </button>
-                      </div>
+                      ) : null}
                     </div>
                   </div>
                 </motion.div>
@@ -1827,29 +1817,78 @@ export function PropertyListingPage({
         <div
           className={cn(
             "relative z-0 w-full bg-white transition-all duration-700 ease-in-out lg:w-[50%] xl:w-[45%]",
-            showMapMobile
+            showMapFullscreen
+              ? "opacity-100"
+              : showMapMobile
               ? "fixed inset-x-0 bottom-0 z-[90] opacity-100 lg:relative lg:inset-auto lg:z-0"
               : mobileMapPrimed
                 ? "pointer-events-none fixed inset-x-0 bottom-0 -z-10 translate-y-8 opacity-0 lg:pointer-events-auto lg:relative lg:inset-auto lg:z-0 lg:translate-y-0 lg:opacity-100"
                 : "hidden lg:block",
           )}
-          style={showMapMobile || mobileMapPrimed ? { top: mobileMapOffset } : undefined}
+          style={
+            showMapFullscreen
+              ? {
+                  position: "fixed",
+                  top: 0,
+                  right: 0,
+                  bottom: 0,
+                  left: 0,
+                  zIndex: 120,
+                  width: "100vw",
+                  height: "100svh",
+                }
+              : showMapMobile || mobileMapPrimed
+                ? { top: mobileMapOffset }
+                : undefined
+          }
         >
           <PropertyListingMap
             properties={displayProperties}
             activeId={activeId}
-            focusMode={showMapMobile ? mapFocusMode : activeId ? "active" : "bounds"}
-            isVisible={showMapMobile || mobileMapPrimed || !isMobileViewport()}
+            focusMode={
+              showMapMobile || showMapFullscreen
+                ? mapFocusMode
+                : activeId
+                  ? "active"
+                  : "bounds"
+            }
+            isVisible={
+              showMapFullscreen ||
+              showMapMobile ||
+              mobileMapPrimed ||
+              !isMobileViewport()
+            }
             drawnItems={drawnItems}
+            layoutKey={
+              showMapFullscreen ? "fullscreen" : showMapMobile ? "mobile" : "docked"
+            }
             onActivateProperty={activatePropertyFromMap}
             onDrawnItemsChange={setDrawnItems}
             onViewProperty={handleViewProperty}
           />
 
+          <div className="absolute right-4 bottom-4 z-[1000] flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleFullscreenMap}
+              className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/95 px-4 py-2.5 text-[9px] font-bold tracking-[0.18em] text-black uppercase shadow-xl backdrop-blur-md transition-all hover:bg-black hover:text-white"
+            >
+              {showMapFullscreen ? (
+                <Minimize2 className="h-3.5 w-3.5" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5" />
+              )}
+              {showMapFullscreen ? "Exit Map" : "Full Map"}
+            </button>
+          </div>
+
           {showMapMobile ? (
             <button
               type="button"
-              onClick={() => setShowMapMobile(false)}
+              onClick={() => {
+                setShowMapMobile(false);
+                setShowMapFullscreen(false);
+              }}
               className="absolute bottom-10 left-1/2 z-[1000] flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/20 bg-black px-8 py-4 text-[10px] font-bold tracking-widest text-white uppercase shadow-2xl lg:hidden"
             >
               <List className="h-4 w-4" />
@@ -1858,7 +1897,7 @@ export function PropertyListingPage({
           ) : null}
         </div>
 
-        {!showMapMobile ? (
+        {!showMapMobile && !showMapFullscreen ? (
           <button
             type="button"
             onClick={() => openMobileMap("bounds")}
