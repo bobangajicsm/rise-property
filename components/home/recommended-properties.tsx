@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bath, Bed, MapPin, Maximize } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatPrice } from "@/lib/property-formatting";
+import { formatAreaSize, formatPrice } from "@/lib/property-formatting";
 import type { Property } from "@/types/property";
 
 interface RecommendedPropertiesProps {
@@ -96,7 +96,7 @@ export function RecommendedProperties({
                   </div>
                   <div className="flex items-center gap-2">
                     <Maximize className="h-4 w-4 text-accent" />
-                    {property.sqft}
+                    {formatAreaSize(property.sqft)}
                   </div>
                 </div>
               </div>
@@ -161,7 +161,7 @@ export function RecommendedProperties({
                   </div>
                   <div className="flex items-center gap-2">
                     <Maximize className="h-4 w-4 text-accent" />
-                    {property.sqft}
+                    {formatAreaSize(property.sqft)}
                   </div>
                 </div>
               </div>

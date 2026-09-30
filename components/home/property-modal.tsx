@@ -3,7 +3,10 @@ import { Bath, Bed, Maximize, X } from "lucide-react";
 import { motion } from "motion/react";
 import { TrackedWhatsAppLink } from "@/components/site/tracked-whatsapp-link";
 import { resolvePropertyAgent } from "@/data/agents";
-import { formatPropertyReference } from "@/lib/property-formatting";
+import {
+  formatAreaSize,
+  formatPropertyReference,
+} from "@/lib/property-formatting";
 import { absoluteUrl, buildWhatsAppInquiry } from "@/lib/site";
 import type { Property } from "@/types/property";
 
@@ -79,7 +82,7 @@ export function PropertyModal({ property, onClose }: PropertyModalProps) {
             <div className="flex flex-col items-center gap-2">
               <Maximize className="h-5 w-5 text-accent" />
               <span className="text-[10px] font-bold tracking-widest uppercase">
-                {property.sqft} sqft
+                {formatAreaSize(property.sqft)}
               </span>
             </div>
           </div>
@@ -115,7 +118,7 @@ export function PropertyModal({ property, onClose }: PropertyModalProps) {
               price={property.price}
               beds={property.beds}
               baths={property.baths}
-              sqft={property.sqft}
+              sqft={formatAreaSize(property.sqft)}
               agentName={propertyAgent.name}
               agentEmail={propertyAgent.email}
               agentPhone={propertyAgent.phone}

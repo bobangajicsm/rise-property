@@ -5,7 +5,10 @@ import { CheckCircle2, ExternalLink, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { resolvePropertyAgent } from "@/data/agents";
 import { absoluteUrl } from "@/lib/site";
-import { formatPropertyReference } from "@/lib/property-formatting";
+import {
+  formatAreaSize,
+  formatPropertyReference,
+} from "@/lib/property-formatting";
 import type { Property } from "@/types/property";
 
 interface BookingModalProps {
@@ -100,7 +103,7 @@ export function BookingModal({
           price: property.price,
           beds: property.beds,
           baths: property.baths,
-          sqft: property.sqft,
+          sqft: formatAreaSize(property.sqft),
           inquiryType:
             mode === "book-viewing" ? "Property Viewing" : "Request Details",
           preferredDate: formData.date,

@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Bath, Bed, MapPin, Maximize } from "lucide-react";
 import { motion } from "motion/react";
+import { formatAreaSize } from "@/lib/property-formatting";
 import { cn } from "@/lib/utils";
 import type { Property } from "@/types/property";
 
@@ -68,7 +69,7 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
           </div>
           <div className="flex items-center gap-2">
             <Maximize className="h-4 w-4 text-accent" />
-            {property.sqft}
+            {formatAreaSize(property.sqft)}
           </div>
         </div>
       </div>

@@ -1781,7 +1781,7 @@ export function PropertyListingPage({
                           <MapIcon className="h-3.5 w-3.5 text-accent" />
                           <span className="text-[10px] font-bold leading-none">
                             {extractSqftValue(property.sqft)}{" "}
-                            <span className="font-normal text-gray-400">sqft</span>
+                            <span className="font-normal text-gray-400">m²</span>
                           </span>
                         </div>
                       </div>

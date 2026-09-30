@@ -6,7 +6,7 @@ import {
   siteName,
   sitePhone,
 } from "@/lib/site";
-import { extractSqftValue } from "@/lib/property-formatting";
+import { getSquareMeterValue } from "@/lib/property-formatting";
 import { LISTING_TYPE_META, type Property } from "@/types/property";
 
 function baseMetadata({
@@ -207,8 +207,8 @@ export function propertyJsonLd(property: Property) {
     numberOfBathroomsTotal: property.baths,
     floorSize: {
       "@type": "QuantitativeValue",
-      value: Number.parseInt(extractSqftValue(property.sqft).replace(/,/g, ""), 10),
-      unitCode: "FTK",
+      value: Number.parseInt(getSquareMeterValue(property.sqft).replace(/,/g, ""), 10),
+      unitCode: "MTK",
     },
     offers: {
       "@type": "Offer",

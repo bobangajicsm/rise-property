@@ -247,7 +247,10 @@ export async function savePropertyAction(input: PropertyMutationInput) {
       : input;
 
   if (access.role === "agent") {
-    if (!previousProperty || !isPropertyOwnedByAgent(previousProperty, access.agent.id)) {
+    if (
+      typeof input.id === "number" &&
+      (!previousProperty || !isPropertyOwnedByAgent(previousProperty, access.agent.id))
+    ) {
       throw new Error("Unauthorized");
     }
   }

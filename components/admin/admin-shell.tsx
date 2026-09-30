@@ -364,7 +364,7 @@ export function AdminShell({
   const desktopSidebarWidth = isCollapsed ? 92 : 320;
   const visibleNavigationItems =
     viewerRole === "agent"
-      ? navigationItems.filter((item) => item.key === "listings")
+      ? navigationItems.filter((item) => item.key === "listings" || item.key === "new")
       : navigationItems;
   const profileName = viewerName ?? (viewerRole === "agent" ? "Agent" : "Main Admin");
   const profileLabel =

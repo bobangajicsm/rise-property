@@ -20,8 +20,36 @@ export function formatCompactPrice(
   return `QAR ${Math.round(price / 1000)}K`;
 }
 
+function parseSizeValue(size: string) {
+  const numericValue = Number.parseFloat(size.replace(/,/g, "").match(/[\d.]+/)?.[0] ?? "");
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+function isSquareFeet(size: string) {
+  return /\b(sq\s*ft|sqft|ft2|ft²|square\s*feet)\b/i.test(size);
+}
+
+function formatAreaNumber(value: number) {
+  return Math.round(value).toLocaleString();
+}
+
+export function getSquareMeterValue(size: string) {
+  const numericValue = parseSizeValue(size);
+
+  if (numericValue === null) {
+    return "";
+  }
+
+  return formatAreaNumber(isSquareFeet(size) ? numericValue * 0.09290304 : numericValue);
+}
+
+export function formatAreaSize(size: string) {
+  const squareMeters = getSquareMeterValue(size);
+  return squareMeters ? `${squareMeters} m²` : size;
+}
+
 export function extractSqftValue(sqft: string) {
-  return sqft.split(" ")[0];
+  return getSquareMeterValue(sqft) || sqft.split(" ")[0];
 }
 
 export function formatPropertyReference(id: number) {

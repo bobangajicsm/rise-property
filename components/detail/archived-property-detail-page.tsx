@@ -38,6 +38,7 @@ import {
 } from "@/lib/site";
 import {
   extractSqftValue,
+  formatAreaSize,
   formatPrice,
   formatPropertyReference,
 } from "@/lib/property-formatting";
@@ -203,7 +204,7 @@ export function ArchivedPropertyDetailPage({
       icon: <Bath className="h-5 w-5" />,
     },
     {
-      label: "Sq Ft",
+      label: "m²",
       value: extractSqftValue(property.sqft),
       icon: <Maximize className="h-5 w-5" />,
     },
@@ -621,7 +622,7 @@ export function ArchivedPropertyDetailPage({
                           price={property.price}
                           beds={property.beds}
                           baths={property.baths}
-                          sqft={property.sqft}
+                          sqft={formatAreaSize(property.sqft)}
                           agentName={propertyAgent.name}
                           agentEmail={propertyAgent.email}
                           agentPhone={propertyAgent.phone}
@@ -733,7 +734,7 @@ export function ArchivedPropertyDetailPage({
                           </span>
                           <span className="flex items-center gap-1.5">
                             <Maximize className="h-3.5 w-3.5 text-accent" />
-                            {extractSqftValue(item.sqft)}
+                            {extractSqftValue(item.sqft)} m²
                           </span>
                         </div>
                       </div>
@@ -782,7 +783,7 @@ export function ArchivedPropertyDetailPage({
                           </span>
                           <span className="flex items-center gap-1.5">
                             <Maximize className="h-3.5 w-3.5 text-accent" />
-                            {extractSqftValue(item.sqft)}
+                            {extractSqftValue(item.sqft)} m²
                           </span>
                         </div>
                       </div>

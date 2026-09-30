@@ -255,6 +255,7 @@ export function AdminListingsTable({
   const [feedback, setFeedback] = useState("");
   const [isPending, startTransition] = useTransition();
   const canManageListings = viewerRole === "admin";
+  const canCreateListings = viewerRole === "admin" || viewerRole === "agent";
 
   const filteredProperties = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -449,7 +450,7 @@ export function AdminListingsTable({
               <SlidersHorizontal className="h-4 w-4" />
               Columns
             </button>
-            {canManageListings ? (
+            {canCreateListings ? (
               <Link
                 href="/admin/listings/new"
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-black px-5 py-3 text-[10px] font-bold tracking-[0.22em] text-white uppercase transition-all hover:bg-accent"

@@ -28,7 +28,10 @@ import {
   resolvePropertyAgent,
 } from "@/data/agents";
 import { AREAS } from "@/data/properties";
-import { getPropertyUsage } from "@/lib/property-formatting";
+import {
+  getPropertyUsage,
+  getSquareMeterValue,
+} from "@/lib/property-formatting";
 import { buildPropertySlug } from "@/lib/property-slug";
 import { buildPropertyTypeOptions } from "@/lib/property-types";
 import { cn } from "@/lib/utils";
@@ -221,7 +224,7 @@ function createEmptyFormState(
     area: AREAS[0]?.name ?? "The Pearl",
     beds: "2",
     baths: "2",
-    sqftValue: "1200",
+    sqftValue: "120",
     lat: String(AREAS[0]?.center[0] ?? 25.3694),
     lng: String(AREAS[0]?.center[1] ?? 51.5511),
     description: "",
@@ -269,7 +272,7 @@ function propertyToFormState(
     area: property.area,
     beds: String(property.beds),
     baths: String(property.baths),
-    sqftValue: property.sqft.replace(/\s*sqft$/i, ""),
+    sqftValue: getSquareMeterValue(property.sqft),
     lat: String(property.lat),
     lng: String(property.lng),
     description: property.description,
@@ -442,7 +445,7 @@ function formStateToPayload(
     period: form.listingType === LISTING_TYPES[1] ? "/month" : "",
     beds: Number(form.beds),
     baths: Number(form.baths),
-    sqft: `${form.sqftValue.trim()} sqft`,
+    sqft: `${form.sqftValue.trim()} m²`,
     images: normalizeLines(form.imagesText),
     badges: normalizeBadges(form.badges),
     type: form.type.trim(),
@@ -538,7 +541,7 @@ function validatePropertyFormState(form: PropertyFormState): FieldErrorMap {
   }
 
   if (!isPositiveNumber(form.sqftValue)) {
-    errors.sqftValue = "Enter a valid size in sqft.";
+    errors.sqftValue = "Enter a valid size in m².";
   }
 
   if (!form.description.trim()) {
@@ -1286,7 +1289,7 @@ export function AdminPropertyEditor({
               <FieldError message={fieldErrors.baths} />
             </div>
             <div>
-              <FieldLabelOptional>Size</FieldLabelOptional>
+              <FieldLabelOptional>Size (m²)</FieldLabelOptional>
               <input
                 required
                 type="number"
@@ -1297,7 +1300,7 @@ export function AdminPropertyEditor({
                     sqftValue: event.target.value,
                   }))
                 }
-                placeholder="Sqft"
+                placeholder="m²"
                 className={cn(
                   "w-full rounded-2xl border bg-gray-50 px-4 py-3 text-sm outline-none transition-colors focus:border-accent",
                   fieldErrors.sqftValue ? "border-red-300" : "border-gray-200",
