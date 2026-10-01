@@ -68,20 +68,43 @@ const DEFAULT_FILTERS = {
   priceRange: "all",
   bedrooms: "all",
   bathrooms: "all",
-  sortBy: "price-desc",
+  sortBy: "newest",
   propertyType: "all",
   furnished: "all",
 } as const;
+
+type PropertySortBy = "newest" | "price-desc" | "price-asc" | "beds-desc";
 
 function isMobileViewport() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches;
 }
 
+function normalizePropertySortBy(value: string | null | undefined): PropertySortBy {
+  return value === "price-desc" || value === "price-asc" || value === "beds-desc"
+    ? value
+    : "newest";
+}
+
+function getPropertyCreatedTime(property: Property) {
+  if (property.createdAt) {
+    const timestamp = new Date(property.createdAt).getTime();
+
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return property.id;
+}
+
 function sortPropertiesBySelectedOrder(
   properties: Property[],
-  sortBy: "price-desc" | "price-asc" | "beds-desc",
+  sortBy: PropertySortBy,
 ) {
   return [...properties].sort((first, second) => {
+    if (sortBy === "newest") {
+      return getPropertyCreatedTime(second) - getPropertyCreatedTime(first);
+    }
     if (sortBy === "price-asc") {
       return first.price - second.price;
     }
@@ -95,8 +118,12 @@ function sortPropertiesBySelectedOrder(
 function comparePropertiesBySelectedOrder(
   first: Property,
   second: Property,
-  sortBy: "price-desc" | "price-asc" | "beds-desc",
+  sortBy: PropertySortBy,
 ) {
+  if (sortBy === "newest") {
+    return getPropertyCreatedTime(second) - getPropertyCreatedTime(first);
+  }
+
   if (sortBy === "price-asc") {
     return first.price - second.price;
   }
@@ -176,7 +203,7 @@ function getSearchMatchScore(property: Property, query: string) {
 function sortPropertiesBySearchRelevance(
   properties: Property[],
   query: string,
-  sortBy: "price-desc" | "price-asc" | "beds-desc",
+  sortBy: PropertySortBy,
 ) {
   const normalizedQuery = query.trim();
 
@@ -213,7 +240,7 @@ function getListingDiscoveryScore(property: Property) {
 
 function sortPropertiesForDiscovery(
   properties: Property[],
-  sortBy: "price-desc" | "price-asc" | "beds-desc",
+  sortBy: PropertySortBy,
 ) {
   return [...properties].sort((first, second) => {
     const scoreDelta =
@@ -469,7 +496,7 @@ export function PropertyListingPage({
     priceRange: initialPriceRange ?? DEFAULT_FILTERS.priceRange,
     bedrooms: initialBedrooms ?? DEFAULT_FILTERS.bedrooms,
     bathrooms: initialBathrooms ?? DEFAULT_FILTERS.bathrooms,
-    sortBy: initialSortBy ?? DEFAULT_FILTERS.sortBy,
+    sortBy: normalizePropertySortBy(initialSortBy),
     propertyType: initialPropertyType ?? DEFAULT_FILTERS.propertyType,
     furnished: initialFurnished ?? DEFAULT_FILTERS.furnished,
   });
@@ -523,7 +550,7 @@ export function PropertyListingPage({
       priceRange: initialPriceRange ?? DEFAULT_FILTERS.priceRange,
       bedrooms: initialBedrooms ?? DEFAULT_FILTERS.bedrooms,
       bathrooms: initialBathrooms ?? DEFAULT_FILTERS.bathrooms,
-      sortBy: initialSortBy ?? DEFAULT_FILTERS.sortBy,
+      sortBy: normalizePropertySortBy(initialSortBy),
       propertyType: initialPropertyType ?? DEFAULT_FILTERS.propertyType,
       furnished: initialFurnished ?? DEFAULT_FILTERS.furnished,
     });
@@ -728,7 +755,7 @@ export function PropertyListingPage({
     return sortPropertiesBySearchRelevance(
       locationScopedProperties.filter((property) => getPropertyUsage(property) === usage),
       appliedLocation,
-      filters.sortBy as "price-desc" | "price-asc" | "beds-desc",
+      filters.sortBy,
     );
   }, [appliedLocation, filters.sortBy, locationScopedProperties, usage]);
 
@@ -738,7 +765,7 @@ export function PropertyListingPage({
         (property) => getPropertyUsage(property) === PROPERTY_USAGE_RESIDENTIAL,
       ),
       appliedLocation,
-      filters.sortBy as "price-desc" | "price-asc" | "beds-desc",
+      filters.sortBy,
     );
   }, [appliedLocation, filters.sortBy, locationScopedProperties]);
 
@@ -781,7 +808,7 @@ export function PropertyListingPage({
   const fallbackDisplayProperties = useMemo(() => {
     return sortPropertiesForDiscovery(
       properties,
-      filters.sortBy as "price-desc" | "price-asc" | "beds-desc",
+      filters.sortBy,
     );
   }, [filters.sortBy, properties]);
   const displayProperties =
@@ -1014,7 +1041,7 @@ export function PropertyListingPage({
   function updateFilter(key: keyof typeof filters, value: string) {
     const nextFilters = {
       ...filters,
-      [key]: value,
+      [key]: key === "sortBy" ? normalizePropertySortBy(value) : value,
     };
 
     setActiveId(null);
@@ -1559,6 +1586,7 @@ export function PropertyListingPage({
                   value={filters.sortBy}
                   onChange={(event) => updateFilter("sortBy", event.target.value)}
                 >
+                  <option value="newest">Newest First</option>
                   <option value="price-desc">Highest Price</option>
                   <option value="price-asc">Lowest Price</option>
                   <option value="beds-desc">Most Bedrooms</option>

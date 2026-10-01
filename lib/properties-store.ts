@@ -44,8 +44,8 @@ interface PropertyRow {
   agent: unknown;
   agent_ids: unknown;
   agents: unknown;
-  created_at?: string;
-  updated_at?: string;
+  created_at?: Date | string | null;
+  updated_at?: Date | string | null;
 }
 
 interface GetPropertiesOptions {
@@ -202,6 +202,31 @@ function normalizeNullableNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+function normalizeTimestamp(value: Date | string | null | undefined) {
+  if (!value) {
+    return undefined;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
+function getPropertyCreatedTime(property: Property) {
+  if (property.createdAt) {
+    const timestamp = new Date(property.createdAt).getTime();
+
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return property.id;
+}
+
 function mapRowToProperty(row: PropertyRow): Property {
   const primaryAgent = parseAgent(row.agent);
   const storedAgents = parseAgentArray(row.agents);
@@ -270,11 +295,21 @@ function mapRowToProperty(row: PropertyRow): Property {
         ? agentIds
         : uniqueStrings(orderedAgents.map((agent) => getAgentSnapshotId(agent))),
     agents: orderedAgents,
+    createdAt: normalizeTimestamp(row.created_at),
+    updatedAt: normalizeTimestamp(row.updated_at),
   };
 }
 
 function sortProperties(properties: Property[]) {
-  return [...properties].sort((first, second) => first.id - second.id);
+  return [...properties].sort((first, second) => {
+    const createdDelta = getPropertyCreatedTime(second) - getPropertyCreatedTime(first);
+
+    if (createdDelta !== 0) {
+      return createdDelta;
+    }
+
+    return second.id - first.id;
+  });
 }
 
 async function ensureSchema() {
@@ -351,6 +386,16 @@ async function ensureSchema() {
       await sql`
         ALTER TABLE properties
         ADD COLUMN IF NOT EXISTS agents JSONB NOT NULL DEFAULT '[]'::jsonb
+      `;
+
+      await sql`
+        ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()
+      `;
+
+      await sql`
+        ALTER TABLE properties
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()
       `;
 
       await sql`
@@ -574,16 +619,16 @@ export async function getAllProperties(
       ? asRows<PropertyRow>(await sql`
           SELECT *
           FROM properties
-          ORDER BY id ASC
+          ORDER BY created_at DESC NULLS LAST, id DESC
         `)
       : asRows<PropertyRow>(await sql`
           SELECT *
           FROM properties
           WHERE visibility_status = ${PROPERTY_VISIBILITY_PUBLISHED}
-          ORDER BY id ASC
+          ORDER BY created_at DESC NULLS LAST, id DESC
         `);
 
-    return rows.map(mapRowToProperty);
+    return sortProperties(rows.map(mapRowToProperty));
   } catch {
     return sortProperties(
       includeDrafts

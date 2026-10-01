@@ -231,6 +231,8 @@ export interface Property {
   agent: PropertyAgent;
   agentIds?: string[];
   agents?: PropertyAgent[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface PropertyMutationInput {

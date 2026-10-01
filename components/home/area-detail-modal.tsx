@@ -21,6 +21,20 @@ const AreaPropertiesMap = dynamic(
   },
 );
 
+type PropertySortBy = "newest" | "price-desc" | "price-asc" | "beds-desc";
+
+function getPropertyCreatedTime(property: Property) {
+  if (property.createdAt) {
+    const timestamp = new Date(property.createdAt).getTime();
+
+    if (Number.isFinite(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return property.id;
+}
+
 interface AreaDetailModalProps {
   areaName: string;
   areaCenter?: [number, number];
@@ -49,7 +63,7 @@ export function AreaDetailModal({
     priceRange: initialFilters?.priceRange ?? "all",
     bedrooms: initialFilters?.bedrooms ?? "all",
     type: initialFilters?.type ?? "all",
-    sortBy: "price-desc",
+    sortBy: "newest" as PropertySortBy,
   });
   const [viewMode, setViewMode] = useState<"list" | "map">("list");
 
@@ -94,6 +108,9 @@ export function AreaDetailModal({
         return matchesListingType && matchesType && matchesBedrooms && matchesPrice;
       })
       .sort((first, second) => {
+        if (modalFilters.sortBy === "newest") {
+          return getPropertyCreatedTime(second) - getPropertyCreatedTime(first);
+        }
         if (modalFilters.sortBy === "price-asc") {
           return first.price - second.price;
         }
@@ -296,10 +313,11 @@ export function AreaDetailModal({
               onChange={(event) =>
                 setModalFilters((current) => ({
                   ...current,
-                  sortBy: event.target.value,
+                  sortBy: event.target.value as PropertySortBy,
                 }))
               }
             >
+              <option value="newest">Newest First</option>
               <option value="price-desc">Price: High to Low</option>
               <option value="price-asc">Price: Low to High</option>
               <option value="beds-desc">Most Bedrooms</option>

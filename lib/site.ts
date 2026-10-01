@@ -124,7 +124,7 @@ function createListingQueryParams(config: ListingPathOptions) {
     params.set("baths", config.bathrooms);
   }
 
-  if (config.sortBy && config.sortBy !== "price-desc") {
+  if (config.sortBy && config.sortBy !== "newest") {
     params.set("sort", config.sortBy);
   }
 
